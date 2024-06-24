@@ -26,24 +26,16 @@ pub fn toggle_ui(ui: &mut egui::Ui, label: &str, on: &mut bool) -> egui::Respons
             ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.allocate_space(vec2(ui.style().spacing.window_margin.right, 0.0));
                 
-                let (id, rect) = ui.allocate_space(desired_size);
+                let (_, rect) = ui.allocate_space(desired_size);
                 
-                
-                // 3. Interact: Time to check for clicks!
                 if big_response.clicked() {
                     *on = !*on;
-                    big_response.mark_changed(); // report back that the value changed
+                    big_response.mark_changed();
                 }
 
-                // Attach some meta-data to the response which can be used by screen readers:
                 big_response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, *on, ""));
-                
-                // 4. Paint!
-                // Make sure we need to paint:
+
                 if ui.is_rect_visible(rect) {
-                    // Let's ask for a simple animation from egui.
-                    // egui keeps track of changes in the boolean associated with the id and
-                    // returns an animated value in the 0-1 range for how much "on" we are.
                     let how_on = ui.ctx().animate_bool(big_response.id, *on);
                     let radius = 0.5 * rect.height();
                     ui.painter()

@@ -233,7 +233,7 @@ impl Client {
         //hwid.clone().split_off(16).as_bytes().try_into().unwrap();
 
         let mut a = hwid.clone();
-        let b = a.split_off(16);
+        let _ = a.split_off(16);
 
         array_tmp.copy_from_slice(a.as_bytes());
 
@@ -439,7 +439,7 @@ impl Client {
                 vec.push(message);
             }
 
-            for (uid, msg) in cache.iter_mut() {
+            for (_, msg) in cache.iter_mut() {
                 msg.sort_by(|a, b| a.last_update_time.0.cmp(&b.last_update_time.0));
             }
         }

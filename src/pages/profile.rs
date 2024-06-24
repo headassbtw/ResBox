@@ -8,7 +8,7 @@ use crate::{
 
 
 impl TemplateApp {
-    pub fn profile_page(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, id: String) {
+    pub fn profile_page(&mut self, ui: &mut egui::Ui, id: String) {
         let is_you: bool = if let Some(youid) = &self.user_id { youid.eq(&id) } else { false };
         let is_contact: bool = { CONTACTS_LIST.lock().get(&id).is_some() };
         let mut pfp_rect = ui.cursor().clone();

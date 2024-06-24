@@ -24,7 +24,7 @@ mod pages;
 pub mod image;
 
 use api::{client::{Contact, Message, UserInfo}, login};
-use widgets::{button::metro_button, loadable_image::loadable_image, segoe_boot_spinner::{self, SegoeBootSpinner}, toggle_switch::{self, toggle_ui}, user_info::{uid_to_color, user_info_widget, UserInfoVariant}};
+use widgets::{button::metro_button, loadable_image::loadable_image, page_header::page_header, segoe_boot_spinner::{self, SegoeBootSpinner}, toggle_switch::{self, toggle_ui}, user_info::{uid_to_color, user_info_widget, UserInfoVariant}};
 
 #[tokio::main]
 async fn main() -> eframe::Result<()> {
@@ -266,7 +266,7 @@ impl TemplateApp {
         }
     }
 
-    pub fn signin_page(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    pub fn signin_page(&mut self, ui: &mut egui::Ui) {
         ui.style_mut().spacing.item_spacing.y = 10.0;
         ui.style_mut().spacing.interact_size.y = 60.0;
         
@@ -319,73 +319,8 @@ impl TemplateApp {
             }
         }
     }
-
-    pub fn notifications_page(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
-        ui.style_mut().spacing.item_spacing.y = 10.0;
-        ui.horizontal(|ui| {
-            ui.allocate_space(vec2(ui.style().spacing.window_margin.left, 0.0));
-            ui.vertical(|ui| {
-                ui.label(RichText::new("Notifications").size(30.0).color(Color32::WHITE));
-                ui.label(RichText::new(self.username()).size(20.0));
-                ui.allocate_space(vec2(0.0,20.0));
-            });
-        });
-        ui.style_mut().spacing.item_spacing.y = 4.0;
-        
-        ui.style_mut().spacing.interact_size.y = 60.0;
-        if metro_button(ui, "Clear all", None).clicked() {
-            self.notifications.clear();
-        }
-
-        ui.style_mut().spacing.interact_size.y = 94.0;
-
-        egui::containers::ScrollArea::vertical().scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden).show(ui, |ui| {
-        
-
-            for i in (0)..(self.notifications.len() as usize) {
-                let assets = self.notifications.get((self.notifications.len() as usize-1) - i).unwrap();
-                let mut rect = ui.available_rect_before_wrap();
-                rect.max.y = rect.min.y + ui.style().spacing.interact_size.y;
-                ui.painter().rect_filled(rect, Rounding::same(0.0), HOVER_COL);
-
-                ui.horizontal(|notif: &mut egui::Ui| {
-                    notif.allocate_space(vec2(72.0 - notif.cursor().left(),0.0));
-                    
-                    let mut icon_rect = notif.available_rect_before_wrap().clone();
-                    let mut header_rect = icon_rect.clone();
-                    let mut subtext_rect = header_rect.clone();
-
-                    
-                    icon_rect.max.x = icon_rect.min.x + 74.0;
-                    icon_rect.min.y += 10.0;
-                    icon_rect.max.y -= 10.0;
-                    match &assets.icon {
-                        FrontendNotificationIcon::SegoeIcon(text) => {
-                            notif.painter().rect_filled(icon_rect, Rounding::same(0.0), ACCENT);
-                            notif.put(icon_rect, egui::Label::new(egui::RichText::new(text).color(Color32::WHITE).size(60.0)).selectable(false));
-                        },
-                        FrontendNotificationIcon::LoadableImage(img) => {
-                            loadable_image(notif, img, icon_rect, "", ACCENT, 0.0, true);
-                        },
-                    }
-                    
-                    
-                    notif.allocate_space(vec2(8.0, 0.0));
-
-                    
-                    notif.vertical(|texts| {
-                        texts.allocate_space(vec2(0.0, 12.0));
-                        texts.style_mut().spacing.item_spacing.y = 8.0;
-                        texts.add(egui::Label::new(egui::RichText::new(&assets.text).color(Color32::WHITE).size(24.0)).selectable(false));
-                        texts.add(egui::Label::new(egui::RichText::new(&assets.sub).color(SUBHEADER_COL).size(24.0)).selectable(false));
-                    });
-
-                });
-            }    
-        });
-    }
-
-    pub fn user_search_page(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    
+    pub fn user_search_page(&mut self, ui: &mut egui::Ui) {
         ui.style_mut().spacing.item_spacing.y = 10.0;
         ui.horizontal(|ui| {
             ui.allocate_space(vec2(ui.style().spacing.window_margin.left, 0.0));
@@ -435,28 +370,12 @@ impl TemplateApp {
         });
     }
 
-    pub fn unknown_page(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
-        ui.style_mut().spacing.item_spacing.y = 10.0;
-        ui.horizontal(|ui| {
-            ui.allocate_space(vec2(ui.style().spacing.window_margin.left, 0.0));
-            ui.vertical(|ui| {
-                ui.label(RichText::new("Unknown Page").size(30.0).color(Color32::WHITE));
-                ui.label(RichText::new("Not Implemented").size(20.0));
-                ui.allocate_space(vec2(0.0,20.0));
-            });
-        });
+    pub fn unknown_page(&mut self, ui: &mut egui::Ui) {
+        page_header(ui, "Unknown Page", "Not Implemented");
     }
 
     pub fn settings_page(&mut self, ui: &mut egui::Ui) {
-        ui.style_mut().spacing.item_spacing.y = 10.0;
-        ui.horizontal(|ui| {
-            ui.allocate_space(vec2(ui.style().spacing.window_margin.left, 0.0));
-            ui.vertical(|ui| {
-                ui.label(RichText::new("Settings").size(30.0).color(Color32::WHITE));
-                ui.label(RichText::new("[UNFINISHED/DEBUG]").size(20.0));
-                ui.allocate_space(vec2(0.0,20.0));
-            });
-        });
+        page_header(ui, "Settings", "[UNFINISHED/DEBUG]");
         ui.style_mut().spacing.interact_size.y = 60.0;
 
         if metro_button(ui, "Clear persistent credentials", Some(("", 24.0))).clicked() {
@@ -464,7 +383,9 @@ impl TemplateApp {
             self.entry_fields.login_details.username = "".to_owned();
             self.entry_fields.login_details.password = "".to_owned();
             if let Ok(entry) = Entry::new(KEYRING_SERVICE, KEYRING_USER) {
-                entry.delete_password();
+                if let Err(err) = entry.delete_password() {
+                    self.notifications.push(icon_notification("", "Keyring deletion failed", format!("{}", err).as_str()));
+                }
             }
         }
     }
@@ -751,16 +672,16 @@ impl eframe::App for TemplateApp {
                 page.style_mut().spacing.window_margin.right = CONTENT_RIGHT_PAD;
                 
                 match &self.current_page {
-                    FrontendPage::SignInPage => self.signin_page(ctx, page),
-                    FrontendPage::ProfilePage(id) => self.profile_page(ctx, page, id.to_string()),
-                    FrontendPage::FriendsPage => self.friends_page(ctx, page),
-                    FrontendPage::NotificationsPage => self.notifications_page(ctx, page),
+                    FrontendPage::SignInPage => self.signin_page(page),
+                    FrontendPage::ProfilePage(id) => self.profile_page(page, id.to_string()),
+                    FrontendPage::FriendsPage => self.friends_page(page),
+                    FrontendPage::NotificationsPage => self.notifications_page(page),
                     FrontendPage::LoadingPage => self.loading_page(page),
-                    FrontendPage::UserSearchPage => self.user_search_page(ctx, page),
+                    FrontendPage::UserSearchPage => self.user_search_page(page),
                     FrontendPage::SettingsPage => self.settings_page(page),
                     FrontendPage::MessagesPage => self.messages_page(page),
                     FrontendPage::ConversationPage(id) => self.conversation_page(page, id.to_string()),
-                    _ =>self.unknown_page(ctx, page)
+                    _ =>self.unknown_page(page)
                 }
             });
             

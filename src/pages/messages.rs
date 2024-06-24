@@ -3,19 +3,13 @@ use std::cmp::Ordering;
 use chrono::{DateTime, Datelike};
 use egui::{pos2, text::{LayoutJob, LayoutSection, TextWrapping}, vec2, Align2, Color32, FontId, RichText, Rounding, TextFormat};
 
-use crate::{api::client::{Message, MessageType, ResDateTime}, widgets::{button::metro_button, user_info::{draw_user_pic_at, UserInfoVariant}}, FrontendPage, TemplateApp, CONTACTS_LIST, HOVER_COL, MESSAGE_CACHE};
+use crate::{api::client::{Message, MessageType, ResDateTime}, widgets::{button::metro_button, page_header::page_header, user_info::{draw_user_pic_at, UserInfoVariant}}, FrontendPage, TemplateApp, CONTACTS_LIST, HOVER_COL, MESSAGE_CACHE};
 
 impl TemplateApp {
     pub fn messages_page(&mut self, ui: &mut egui::Ui) {
-        ui.style_mut().spacing.item_spacing.y = 10.0;
-        ui.horizontal(|ui| {
-            ui.allocate_space(vec2(ui.style().spacing.window_margin.left, 0.0));
-            ui.vertical(|ui| {
-                ui.label(RichText::new("Messages").size(30.0).color(Color32::WHITE));
-                ui.label(RichText::new(if let Some(you) = &self.you { you.username.clone() } else { "".to_string() }).size(20.0));
-                ui.allocate_space(vec2(0.0,20.0));
-            });
-        });
+        
+        page_header(ui, "Messages", &self.username());
+
         ui.style_mut().spacing.item_spacing.y = 4.0;
         ui.style_mut().spacing.interact_size.y = 60.0;  
         if metro_button(ui, "New message", Some(("", 72.0))).clicked() {
@@ -30,8 +24,8 @@ impl TemplateApp {
             ui.style_mut().spacing.item_spacing.y = 4.0;
 
             hash_vec.sort_by(|a, b| {
-                let (c,d) = *a;
-                let (e,f) = *b;
+                let (_,d) = *a;
+                let (_,f) = *b;
 
                 if let Some(first) = d.last() {
                     if let Some(first_cmp) = f.last() { 
@@ -99,7 +93,7 @@ impl TemplateApp {
                     let date_pos = pos2(bound_rect.max.x, u_rect.max.y - 4.0);
 
                     let date = &last.send_time.0;
-                    ui.painter().text(date_pos, Align2::RIGHT_BOTTOM, format!("{}/{}/{}", date.month(), date.day(), date.year()), FontId::proportional(18.0), Color32::GRAY);
+                    ui.painter().text(date_pos, Align2::RIGHT_BOTTOM, format!("{}/{}/{}", date.month(), date.day(), date.year()), FontId::proportional(18.0), Color32::from_gray(140));
 
                     let mut message_job = LayoutJob::simple_singleline(msg.to_owned(), FontId::proportional(20.0), Color32::GRAY);
                     message_job.wrap = TextWrapping::truncate_at_width(bound_rect.width());

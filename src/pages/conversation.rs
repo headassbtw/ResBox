@@ -1,29 +1,58 @@
 use chrono::{DateTime, Datelike, Utc};
 use egui::{text::{LayoutJob, TextWrapping}, vec2, Align, Align2, Color32, FontId, Layout, Margin, Mesh, RichText, Rounding, Shape, Stroke, TextEdit};
 
-use crate::{api::client::{Contact, MessageType, ResDateTime}, backend::thread::UiToReso, disgusting_bullshit, widgets::{button::metro_button, user_info::{user_info_widget, UserInfoVariant}}, TemplateApp, CONTACTS_LIST, MESSAGE_CACHE};
+use crate::{api::client::{Contact, MessageType, ResDateTime}, backend::thread::UiToReso, disgusting_bullshit, widgets::{button::metro_button, page_header::page_header, user_info::{draw_user_pic_at, user_info_widget, UserInfoVariant}}, TemplateApp, CONTACTS_LIST, MESSAGE_CACHE};
 
 impl TemplateApp {
     pub fn conversation_page(&mut self, ui: &mut egui::Ui, id: String) {
         {
             let contacts = CONTACTS_LIST.lock();
             if let Some(contact) = contacts.get(&id) {
-                user_info_widget(ui, &mut self.image_cache, UserInfoVariant::Contact(contact));
+
+                // 72px pfp, 72px padding
+
+                //TODO: THIS SYSTEM SUCKS! it's repetetive and shares code, but i can't think of a good unified solution yet
+
+                let pfp_draw_variant = {
+                    if let Some(profile) = contacts.get(&id) {
+                        UserInfoVariant::Contact(profile)
+                    } else if let Some(profile) = self.cached_user_infos.get(&id) {
+                        UserInfoVariant::Cached(profile)
+                    } else {
+                        UserInfoVariant::Uncached(&id)
+                    }
+                };
+
+                let name = match &pfp_draw_variant {
+                    UserInfoVariant::Cached(p) => {&p.username},
+                    UserInfoVariant::Contact(c) => {&c.contact_username},
+                    UserInfoVariant::Uncached(u) => {u},
+                };
+
+                let (response, painter) = ui.allocate_painter(vec2(ui.available_width(), 100.0), egui::Sense::focusable_noninteractive());
+
+                let mut img_rect = response.rect.clone();
+                img_rect.min.x = 72.0; // hardcode for now
+                img_rect.max.x = img_rect.min.x + 72.0;
+                img_rect.min.y = img_rect.center().y - 36.0;
+                img_rect.max.y = img_rect.min.y + 72.0;
+
+                
+                draw_user_pic_at(ui, img_rect, &mut self.image_cache, pfp_draw_variant);
+
+                let text_anchor = img_rect.center() + vec2(36.0 + 18.0, 0.0);
+
+                
+
+                painter.text(text_anchor - vec2(0.0, 4.0), Align2::LEFT_BOTTOM, name, FontId::proportional(24.0), Color32::WHITE);
+                painter.text(text_anchor + vec2(0.0, 4.0), Align2::LEFT_TOP, "Offline", FontId::proportional(20.0), Color32::from_gray(140));
             } else {
-                ui.style_mut().spacing.item_spacing.y = 10.0;
-                ui.horizontal(|ui| {
-                    ui.allocate_space(vec2(ui.style().spacing.window_margin.left, 0.0));
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new("Message Page").size(30.0).color(Color32::WHITE));
-                        ui.label(RichText::new("Oh fuck").size(20.0));
-                        ui.allocate_space(vec2(0.0,20.0));
-                    });
-                });
+                page_header(ui, "Message Page", "Oh fuck (user is not in contacts)");
             }
         }
 
         ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {
-            let (bottom_rect, bottom_resp) = ui.allocate_exact_size(vec2(ui.available_width(), 116.0), egui::Sense::click());
+            let (bottom_rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 116.0), egui::Sense::click());
             ui.painter().rect_filled(bottom_rect, Rounding::same(0.0), Color32::from_gray(11));
             
             
@@ -122,11 +151,13 @@ impl TemplateApp {
                     bar.style_mut().spacing.interact_size.y = 68.0;
                     bar.style_mut().spacing.window_margin.left = 74.0;
 
+                    /*
                     let mut layouter = |ui: &egui::Ui, string: &str, wrap_width: f32| {
                         let mut layout_job: egui::text::LayoutJob = LayoutJob::simple_singleline(string.to_string(), egui::FontId::new(24.0, eframe::epaint::FontFamily::Proportional), Color32::WHITE);
                         layout_job.wrap.max_width = wrap_width;
                         ui.fonts(|f| f.layout_job(layout_job))
-                    };
+                        };
+                    */
 
                     disgusting_bullshit(bar, false);
                     let marge = Margin { left: bar.style().spacing.window_margin.left, right: bar.style().spacing.window_margin.right, top: 12.0, bottom: 22.0 };
