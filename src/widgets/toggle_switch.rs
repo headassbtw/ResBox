@@ -1,55 +1,40 @@
-use egui::{vec2, Color32, Layout, Rounding, Sense, Stroke, Vec2};
+use egui::{pos2, vec2, Align2, Color32, FontId, Layout, Pos2, Rect, Rounding, Sense, Stroke, Vec2};
 
-use crate::{ACCENT, HOVER_COL};
+use crate::{ACCENT, HOVER_COL, TEXT_COL};
 
 pub fn toggle_ui(ui: &mut egui::Ui, label: &str, on: &mut bool) -> egui::Response {
-    let mut big_rect = ui.available_rect_before_wrap();
-    big_rect.max.y = big_rect.min.y + ui.style().spacing.interact_size.y;
-    let (mut rect, mut big_response) = ui.allocate_exact_size(big_rect.size(), egui::Sense::click());
-    rect.min.x = ui.style().spacing.window_margin.left;
-    let desired_size = 24.0 * egui::vec2(2.0, 1.0);
+    let (mut response, painter) = ui.allocate_painter(vec2(ui.available_width(),ui.style().spacing.interact_size.y), egui::Sense::click());
     
-    if big_response.is_pointer_button_down_on() {
-        ui.painter().rect_filled(big_rect, Rounding::same(0.0), ui.style().visuals.widgets.active.bg_fill);
-    } else if big_response.hovered() {
-        ui.painter().rect_filled(big_rect, Rounding::same(0.0), ui.style().visuals.widgets.hovered.bg_fill);
+    if !ui.is_rect_visible(response.rect) { return response; }
+    
+    response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, *on, label));
+
+    if response.is_pointer_button_down_on() {
+        painter.rect_filled(response.rect, Rounding::same(0.0), ui.style().visuals.widgets.active.bg_fill);
+    } else if response.hovered() {
+        painter.rect_filled(response.rect, Rounding::same(0.0), ui.style().visuals.widgets.hovered.bg_fill);
     }
 
-    ui.allocate_ui_at_rect(rect, |ui| {
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| { // segoe is a bit problematic.
-                ui.allocate_space(vec2(0.0, 14.0));
-                ui.add(egui::Label::new(egui::RichText::new(label).size(24.0).color(Color32::WHITE).line_height(None)).selectable(false));
+    if response.clicked() {
+        *on = !*on;
+        response.mark_changed();
+    }
 
-            });
-            
-            ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.allocate_space(vec2(ui.style().spacing.window_margin.right, 0.0));
-                
-                let (_, rect) = ui.allocate_space(desired_size);
-                
-                if big_response.clicked() {
-                    *on = !*on;
-                    big_response.mark_changed();
-                }
+    let radius = (response.rect.height() / 2.0) - 18.0;
 
-                big_response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, *on, ""));
+    let switch_rect = Rect {
+        min: Pos2 { x: response.rect.max.x - (24.0 + (radius * 4.0)), y: response.rect.min.y + 18.0 },
+        max: Pos2 { x: response.rect.max.x - 24.0, y: response.rect.max.y - 18.0 }
+    };
 
-                if ui.is_rect_visible(rect) {
-                    let how_on = ui.ctx().animate_bool(big_response.id, *on);
-                    let radius = 0.5 * rect.height();
-                    ui.painter()
-                    .rect(rect, radius, Color32::TRANSPARENT, Stroke::new(2.0, Color32::WHITE));
-                    // Paint the circle, animating it from left to right with `how_on`:
-                    let circle_x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), how_on);
-                    let center = egui::pos2(circle_x, rect.center().y);
-                    ui.painter()
-                        .circle(center, 0.5 * radius, Color32::WHITE, Stroke::NONE);
-            }
-        });
-        
-        // All done! Return the interaction response so the user can check what happened
-        // (hovered, clicked, ...) and maybe show a tooltip:
-        });
-    }).response
+    let how_on = ui.ctx().animate_bool(response.id, *on);
+    
+    painter.rect(switch_rect, radius, Color32::TRANSPARENT, Stroke::new(2.0, TEXT_COL));
+    let circle_x = egui::lerp((switch_rect.left() + radius)..=(switch_rect.right() - radius), how_on);
+    let center = egui::pos2(circle_x, switch_rect.center().y);
+    painter.circle(center, 0.5 * radius, TEXT_COL, Stroke::NONE);
+
+    painter.text(pos2(response.rect.left() + ui.style().spacing.window_margin.left, response.rect.center().y - 5.0), Align2::LEFT_CENTER, label, FontId::proportional(24.0), TEXT_COL);
+
+    response
 }

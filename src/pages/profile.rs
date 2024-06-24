@@ -93,11 +93,13 @@ impl TemplateApp {
         ui.style_mut().spacing.item_spacing.y = 0.0;
         if !is_you {
 
-            if !is_contact {
-                metro_button(ui, "Friend Request", Some(("", 24.0)));
-            }
+            
             if metro_button(ui, "Send message", None).clicked() {
                 self.current_page = FrontendPage::ConversationPage(id.clone());
+            }
+            ui.set_enabled(false);
+            if !is_contact {
+                metro_button(ui, "Friend Request", Some(("", 24.0)));
             }
             metro_button(ui, "Block", None);
 

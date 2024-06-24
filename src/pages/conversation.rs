@@ -100,8 +100,9 @@ impl TemplateApp {
 
                                 // 16px all sides padding
                                 let (mut paint_rect, msg_resp) = ui.allocate_exact_size(vec2(galley.rect.max.x + 32.0, galley.rect.max.y + 56.0), egui::Sense::click());
-                                paint_rect.max.y -= 14.0;
-                                let paint_rect = if self.is_you(&message.sender_id) {
+                                if !ui.is_rect_visible(paint_rect) { continue; } // WE OPTIMIZED UP IN THIS BITCH 🔥
+                                paint_rect.max.y -= 14.0;                        // every time i do that, i have to google "fire emoji"
+                                let paint_rect = if self.is_you(&message.sender_id) { // Sometimes i envy mac users that can just type it, but then remember they're mac users and feel pity
                                     paint_rect.translate(vec2(ui.available_width() - (40.0 +  paint_rect.width()), 0.0))
                                 } else {
                                     paint_rect.translate(vec2(72.0, 0.0))

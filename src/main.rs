@@ -115,7 +115,11 @@ pub const CONTENT_RIGHT_PAD: f32 = 24.0;
 
 const BUTTON_HEIGHT: f32 = 60.0;
 
-pub const SUBHEADER_COL: Color32 = Color32::from_gray(174);
+pub const SUBHEADER_COL: Color32 = Color32::from_gray(170);
+
+/// Used in place of white on disabled elements
+pub const DISABLED_COL: Color32 = Color32::from_gray(121);
+pub const TEXT_COL: Color32 = Color32::from_gray(250);
 
 pub const ACCENT: Color32 = Color32::from_rgb(220, 53, 60);
 pub const HOVER_COL: Color32 = Color32::from_gray(51);
@@ -258,7 +262,7 @@ fn disgusting_bullshit(ui: &mut egui::Ui, click_test: bool) {
 
 impl TemplateApp {    
 
-    pub fn is_you(&self, id: &String) -> bool {
+    pub fn /*baba_*/is_you(&self, id: &String) -> bool {
         if let Some(you_id) = &self.user_id {
             you_id.eq(id)
         } else {
@@ -267,28 +271,21 @@ impl TemplateApp {
     }
 
     pub fn signin_page(&mut self, ui: &mut egui::Ui) {
-        ui.style_mut().spacing.item_spacing.y = 10.0;
         ui.style_mut().spacing.interact_size.y = 60.0;
         
-        ui.horizontal(|ui| {
-            ui.allocate_space(vec2(ui.style().spacing.window_margin.left, 0.0));
-            ui.vertical(|ui| {
-                ui.label(RichText::new("Sign In").size(30.0).color(Color32::WHITE));
-                ui.label(RichText::new(format!("0 Signed in")).size(20.0));
-                ui.allocate_space(vec2(0.0,20.0));
-            });
-        });
+        page_header(ui, "Sign In", "0 Signed in");
+
         ui.style_mut().spacing.item_spacing.y = 0.0;
         let mut test_rect = ui.available_rect_before_wrap();
         test_rect.max.y = test_rect.min.y + 60.0;
-        let mut marge = Margin { left: CONTENT_LEFT_PAD, right: CONTENT_RIGHT_PAD, top: 12.0, bottom: 12.0 };
+        let marge = Margin { left: CONTENT_LEFT_PAD, right: CONTENT_RIGHT_PAD, top: 12.0, bottom: 12.0 };
 
         if !self.logged_in && self.can_attempt_login{
             disgusting_bullshit(ui, false);
             ui.add_sized(test_rect.size(), TextEdit::singleline(&mut self.entry_fields.login_details.username)
                 .desired_width(test_rect.width())
                 .vertical_align(egui::Align::Center)
-                .text_color(Color32::WHITE)
+                .text_color(TEXT_COL)
                 .hint_text("Username")
                 .margin(marge)
                 .font(egui::FontId::new(24.0, eframe::epaint::FontFamily::Proportional))
@@ -299,7 +296,7 @@ impl TemplateApp {
             ui.add_sized(test_rect.size(), TextEdit::singleline(&mut self.entry_fields.login_details.password)
                 .desired_width(test_rect.width())
                 .vertical_align(egui::Align::Center)
-                .text_color(Color32::WHITE)
+                .text_color(TEXT_COL)
                 .hint_text("Password")
                 .margin(marge)
                 .font(egui::FontId::new(24.0, eframe::epaint::FontFamily::Proportional))
@@ -310,8 +307,6 @@ impl TemplateApp {
             
             toggle_ui(ui, "Remember Me", &mut self.entry_fields.login_details.remember_me);
             
-            disgusting_bullshit(ui, true);
-            
             if metro_button(ui, "Log in", Some(("", 24.0))).clicked() {
                 self.backend.tx.send(backend::thread::UiToReso::TokenRequestCredentials(self.entry_fields.login_details.username.clone(), self.entry_fields.login_details.password.clone(), self.entry_fields.login_details.remember_me)).unwrap();
                 self.can_attempt_login = false;      
@@ -321,15 +316,7 @@ impl TemplateApp {
     }
     
     pub fn user_search_page(&mut self, ui: &mut egui::Ui) {
-        ui.style_mut().spacing.item_spacing.y = 10.0;
-        ui.horizontal(|ui| {
-            ui.allocate_space(vec2(ui.style().spacing.window_margin.left, 0.0));
-            ui.vertical(|ui| {
-                ui.label(RichText::new("Query Users").size(30.0).color(Color32::WHITE));
-                ui.label(RichText::new(self.username()).size(20.0));
-                ui.allocate_space(vec2(0.0,20.0));
-            });
-        });
+        page_header(ui, "Query Users", &self.username());
         let marge = Margin { left: CONTENT_LEFT_PAD, right: CONTENT_RIGHT_PAD, top: 12.0, bottom: 12.0 };
         let i_size = vec2(ui.available_width(), 60.0);
         ui.style_mut().spacing.interact_size.y = 60.0;
@@ -338,7 +325,7 @@ impl TemplateApp {
         let text_re = ui.add_sized(i_size, TextEdit::singleline(&mut self.entry_fields.user_info_query)
             .desired_width(i_size.x)
             .vertical_align(egui::Align::Center)
-            .text_color(Color32::WHITE)
+            .text_color(TEXT_COL)
             .hint_text("User ID")
             .margin(marge)
             .font(egui::FontId::new(24.0, eframe::epaint::FontFamily::Proportional))
