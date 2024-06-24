@@ -25,7 +25,7 @@ uuid = {version = "1.8.0", features = [
 tokio = "1.38.0"
 serde_json = "1.0.117"
 sha256 = "1.5.0"
-signalrs-client = { path = "/home/headass/git/signalrs/lib/signalrs-client/" }
+signalrs-client = { path = "./external/signalrs/lib/signalrs-client/" }
 anyhow = "1.0.86"
 signalrs-derive = "0.1.0"
 lazy_static = "1.4.0"

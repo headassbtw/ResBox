@@ -1,0 +1,3 @@
+[submodule "external/signalrs"]
+	path = external/signalrs
+	url = https://github.com/headassbtw/signalrs/
