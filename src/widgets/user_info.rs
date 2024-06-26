@@ -60,28 +60,24 @@ pub fn draw_user_pic_at(ui: &mut egui::Ui, rect: egui::Rect, cache: &mut ResDbIm
 }
 
 pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: UserInfoVariant) -> egui::Response {
+    let height = ui.style().spacing.interact_size.y;
+    let mut rect = ui.cursor().clone();
+    rect.max.y = height + rect.min.y;
+    let response = ui.allocate_rect(rect, egui::Sense::click());
+
+    if !ui.is_rect_visible(rect) { return response; }
+
+    let pfp_radius = (height - 32.0 ) / 2.0;
+
     // usually 104  
     // pfps usually 72
 
     // 16px padding
 
-    let mut main_string: &String = &"".to_owned();
-    let mut sub_string: &String = &"".to_owned();
-    let mut stat_string: &String = &"".to_owned();
-
-    let height = ui.style().spacing.interact_size.y;
-    let pfp_radius = (height - 32.0 ) / 2.0;
-
-    let mut rect = ui.cursor().clone();
-    rect.max.y = height + rect.min.y;
-
-    let mut bound_rect = rect.clone();
-    bound_rect.min.x += ui.style().spacing.window_margin.left + (pfp_radius * 2.0) + 16.0;
-    bound_rect.max.x -= ui.style().spacing.window_margin.right;
-    bound_rect.min.y += 16.0;
-    bound_rect.max.y -= 16.0;
-
-    let response = ui.allocate_rect(rect, egui::Sense::click());
+    let bound_rect = Rect {
+        min: Pos2 { x: rect.min.x + ui.style().spacing.window_margin.left + (pfp_radius * 2.0) + 16.0,  y: rect.min.y + 16.0 },
+        max: Pos2 { x: rect.max.x - ui.style().spacing.window_margin.right,                             y: rect.max.y - 16.0 }
+    };
 
     if response.is_pointer_button_down_on() {
         ui.painter().rect_filled(rect, Rounding::same(0.0), ui.style().visuals.widgets.active.bg_fill);
@@ -95,49 +91,57 @@ pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: Us
 
     let blank_ref = &"".to_owned();
 
-    if match info {
-        UserInfoVariant::Uncached(uid) => {
-            main_string = &uid;
-            stat_string = blank_ref;
-            true
-        },
-        UserInfoVariant::Contact(contact) => {
-            main_string = &contact.contact_username;
-            sub_string = &contact.id;
-            stat_string = &contact.contact_status;
-            if let Some(prof) = &contact.profile {
-                let loadable = cache.get_image(&prof.icon_url);
-                loadable_image(ui, &loadable, cirlcle_rect, "", uid_to_color(&contact.id), 32.0, false);
-                false
-            } else { true }
-        },
-        UserInfoVariant::Cached(user) => {
-            main_string = &user.username;
-            sub_string = &user.id;
-            stat_string = blank_ref;
-
-            if let Some(prof) = &user.profile {
-                let loadable = cache.get_image(&prof.icon_url);
-                loadable_image(ui, &loadable, cirlcle_rect, "", uid_to_color(&user.id), 32.0, false);
-                false
-            } else { true }
-        },
-    } {
-        ui.painter().circle_filled(circle_pos, pfp_radius, uid_to_color(if sub_string.is_empty() { main_string } else {sub_string} ));
+    let (main, sub, stat, needs_draw) = {
+        match info {
+            UserInfoVariant::Uncached(uid) => {
+                (
+                    uid,
+                    blank_ref,
+                    blank_ref,
+                    true
+                )
+            },
+            UserInfoVariant::Contact(contact) => {
+                (
+                    &contact.contact_username,
+                    &contact.id,
+                    &contact.contact_status,
+                    if let Some(prof) = &contact.profile {
+                        let loadable = cache.get_image(&prof.icon_url);
+                        loadable_image(ui, &loadable, cirlcle_rect, "", uid_to_color(&contact.id), 32.0, false);
+                        false
+                    } else { true }
+            )
+            },
+            UserInfoVariant::Cached(user) => {
+                (
+                    &user.username,
+                    &user.id,
+                    blank_ref,
+                    if let Some(prof) = &user.profile {
+                        let loadable = cache.get_image(&prof.icon_url);
+                        loadable_image(ui, &loadable, cirlcle_rect, "", uid_to_color(&user.id), 32.0, false);
+                        false
+                    } else { true }
+                )
+            },
+        }
+    };
+    
+    if needs_draw {
+        ui.painter().circle_filled(circle_pos, pfp_radius, uid_to_color(if sub.is_empty() { main } else {sub} ));
         ui.painter().text(circle_pos, Align2::CENTER_CENTER, "", FontId::proportional(pfp_radius), Color32::WHITE);
     }
 
-    let mut fullname_rect = ui.painter().text(bound_rect.min, Align2::LEFT_TOP, main_string, FontId::proportional(24.0), Color32::WHITE);
+    let mut fullname_rect = ui.painter().text(bound_rect.min, Align2::LEFT_TOP, main, FontId::proportional(24.0), Color32::WHITE);
 
     fullname_rect.min.x = fullname_rect.max.x;
     fullname_rect.max.x = bound_rect.max.x;
     fullname_rect.min.x += 12.0;
 
-    ui.painter().text(pos2(fullname_rect.min.x, fullname_rect.max.y), Align2::LEFT_BOTTOM, sub_string, FontId::proportional(18.0), Color32::GRAY);
+    ui.painter().text(pos2(fullname_rect.min.x, fullname_rect.max.y), Align2::LEFT_BOTTOM, sub, FontId::proportional(18.0), Color32::GRAY);
 
-    bound_rect = bound_rect.translate(vec2(0.0, 34.0));
-
-    ui.painter().text(bound_rect.min, Align2::LEFT_TOP, stat_string, FontId::proportional(24.0), Color32::GRAY);
+    ui.painter().text(bound_rect.min + vec2(0.0, 34.0), Align2::LEFT_TOP, stat, FontId::proportional(24.0), Color32::GRAY);
 
     response
 }

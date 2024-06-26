@@ -67,7 +67,7 @@ impl TemplateApp {
             } else {
                 "Unknown Contact".to_owned()
             }
-        }else {
+        } else {
             if let Some(user) = self.cached_user_infos.get(&id) {
                 user.username.clone()
             } else {
@@ -85,27 +85,19 @@ impl TemplateApp {
         ui.allocate_space(vec2(0.0, avail_rect.min.y - ui.cursor().min.y));
 
         ui.style_mut().spacing.interact_size.y = 60.0;
-
-        if let Some(you) = &self.user_id {
-            if you.eq(&id) { return; }
-        }
-
         ui.style_mut().spacing.item_spacing.y = 0.0;
-        if !is_you {
 
-            
-            if metro_button(ui, "Send message", None).clicked() {
-                self.current_page = FrontendPage::ConversationPage(id.clone());
-            }
-            ui.set_enabled(false);
-            if !is_contact {
-                metro_button(ui, "Friend Request", Some(("", 24.0)));
-            }
-            metro_button(ui, "Block", None);
-
-            if metro_button(ui, "Get status", None).clicked() {
-            }
+        if self.is_you(&id) { return ; }
+        
+        if metro_button(ui, "Send message", None).clicked() {
+            self.current_page = FrontendPage::ConversationPage(id.clone());
         }
+        
+        ui.set_enabled(false);
+        if !is_contact {
+            metro_button(ui, "Friend Request", Some(("", 24.0)));
+        }
+        metro_button(ui, "Block", None);
         
     }
 }

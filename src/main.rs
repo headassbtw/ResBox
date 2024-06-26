@@ -8,7 +8,7 @@ use keyring::{Entry, Result};
 
 use backend::thread::{BackendThread, BroadcastTarget, InitialLoginType, UiToReso, UserStatus};
 use eframe::{glow, Frame};
-use egui::{epaint::{text::cursor::PCursor, Shadow}, load::SizedTexture, mutex::Mutex, output::OutputEvent, vec2, Align2, Color32, FontData, FontDefinitions, FontId, ImageSource, Layout, Margin, Pos2, Rect, RichText, Rounding, Stroke, TextEdit, TextureId, Vec2, Widget};
+use egui::{epaint::{text::cursor::PCursor, Shadow}, load::SizedTexture, mutex::Mutex, output::OutputEvent, pos2, vec2, Align2, Color32, FontData, FontDefinitions, FontId, ImageSource, Layout, Margin, Pos2, Rect, RichText, Rounding, Stroke, TextEdit, TextureId, Vec2, Widget};
 use humansize::{SizeFormatter, DECIMAL};
 use image::{LoadableImage, ResDbImageCache};
 use log::{debug, error};
@@ -405,11 +405,11 @@ impl eframe::App for TemplateApp {
                     self.token = token.clone();
                     self.user_id = Some(uid.clone());
                     self.logged_in = true;
-                    self.backend.tx.send(backend::thread::UiToReso::SignalConnectRequest(self.token.clone())).unwrap();
+                    self.backend.tx.send(backend::thread::UiToReso::SignalConnectRequest(uid.clone(), self.token.clone())).unwrap();
                     //self.notifications.push(icon_notification("", "SignalR Status Disabled", "SignalInitializeStatus not sent"));
+                    //self.backend.tx.send(backend::thread::UiToReso::SignalRequestStatus(String::new(), false)).unwrap();
                     self.backend.tx.send(backend::thread::UiToReso::SignalInitializeStatus).unwrap();
-                    self.backend.tx.send(backend::thread::UiToReso::SignalRequestStatus(String::new(), false)).unwrap();
-                    self.backend.tx.send(backend::thread::UiToReso::SignalListenOnKey(String::new())).unwrap();
+                    //self.backend.tx.send(backend::thread::UiToReso::SignalListenOnKey(String::new())).unwrap();
                     self.backend.tx.send(backend::thread::UiToReso::SignalBroadcastStatus(UserStatus::new().id(uid.clone()), BroadcastTarget::new())).unwrap();
                     if self.current_page == FrontendPage::LoadingPage {
                         self.current_page = FrontendPage::ProfilePage(uid.clone());
@@ -507,14 +507,17 @@ impl eframe::App for TemplateApp {
                         sub: format!("{}", match err {
                             signalrs_client::builder::BuilderError::Negotiate { source } => {
                                 match source {
-                                    signalrs_client::builder::NegotiateError::Request { source } => "Negotiation Request error",
-                                    signalrs_client::builder::NegotiateError::Deserialization { source } => "Negotiation Deserialization error",
-                                    signalrs_client::builder::NegotiateError::Unsupported => "Negotiation Unsupported",
+                                    signalrs_client::builder::NegotiateError::Request { source } => {
+                                        println!("Negotiation error: {}", source);
+                                        format!("Negotiation Request error")
+                                    },
+                                    signalrs_client::builder::NegotiateError::Deserialization { source } => format!("Negotiation Deserialization error"),
+                                    signalrs_client::builder::NegotiateError::Unsupported => format!("Negotiation Unsupported"),
                                 }
                             },
-                            signalrs_client::builder::BuilderError::Url(_) => "Url",
+                            signalrs_client::builder::BuilderError::Url(_) => format!("Url"),
                             signalrs_client::builder::BuilderError::Transport { source } => {
-                                "Transport error"
+                                format!("Transport error: {}", source)
                             },
                         })
                     });
@@ -534,7 +537,7 @@ impl eframe::App for TemplateApp {
                                 } },
                                 signalrs_client::error::ClientError::ProtocolError { message } => { "Protocol violated" },
                                 signalrs_client::error::ClientError::NoResponse { message } => { "No response" },
-                                signalrs_client::error::ClientError::Result { message } => { println!("{}", message); "Server error" },
+                                signalrs_client::error::ClientError::Result { message } => { println!("server error: {}", message); "Server error" },
                                 signalrs_client::error::ClientError::TransportInavailable { message } => { "Cannot reach transport" },
                                 signalrs_client::error::ClientError::Handshake { message } => { println!("{}", message); "Handshake" },
                             })
@@ -577,8 +580,6 @@ impl eframe::App for TemplateApp {
                 sidebar.painter().rect_filled(avail_rect, Rounding::same(0.0), Color32::from_gray(6));
                 sidebar.allocate_space(vec2(0.0, 0.0));
                 
-                // base = 20.0
-                // 1-* = 40.0+SIDEBAR_ITEM_SIZE + (4.0+SIDEBAR_ITEM_SIZE) * i
                 let tab = match &self.current_page {
                     FrontendPage::SignInPage => 0,
                     FrontendPage::ProfilePage(id) => {if let Some(you) = &self.user_id { if you.eq(id) { 0 } else { 255 }} else { 255 }},
@@ -631,13 +632,34 @@ impl eframe::App for TemplateApp {
                 
                 sidebar.style_mut().spacing.item_spacing.y = 4.0;
 
-                if sidebar_button("", &mut sidebar) { self.current_page = FrontendPage::FriendsPage; } // friends
+                if sidebar_button("", &mut sidebar) { self.current_page = FrontendPage::FriendsPage; }  // friends
 
-                if sidebar_button("", &mut sidebar) { self.current_page = FrontendPage::SessionsPage; } // parties
+                if sidebar_button("", &mut sidebar) { self.current_page = FrontendPage::SessionsPage; } // parties (sessions)
 
                 if sidebar_button("", &mut sidebar) { self.current_page = FrontendPage::MessagesPage; } // messages
 
-                if sidebar_button("", &mut sidebar) { self.current_page = FrontendPage::NotificationsPage; } // notifications?
+                if {
+                    let (rect, response) = sidebar.allocate_exact_size(vec2(SIDEBAR_ITEM_SIZE, SIDEBAR_ITEM_SIZE), egui::Sense::click());
+
+                    // 10px between icon and text
+                    // icon is 32px, text is 18px
+
+                    if self.notifications.len() <= 0 {
+                        sidebar.painter_at(rect).text(rect.center(), Align2::CENTER_CENTER, "", FontId::monospace(32.0), Color32::WHITE);
+                    } else {
+                        let count_galley = ui.painter().layout(self.notifications.len().to_string(), FontId::proportional(18.0), Color32::WHITE, SIDEBAR_ITEM_SIZE);
+                        let width = 32.0 + 10.0 + count_galley.rect.width();
+                        let icon_center = pos2((rect.center().x - width / 2.0) + 16.0, rect.center().y + 3.0);
+                        let label_pos = pos2(icon_center.x + 26.0, (rect.center().y - count_galley.rect.height() / 2.0) - 3.0);
+
+                        sidebar.painter_at(rect).text(icon_center, Align2::CENTER_CENTER, "", FontId::monospace(32.0), Color32::WHITE);
+                        sidebar.painter().galley(label_pos, count_galley, Color32::WHITE)
+                    }
+
+                    response.clicked()
+                } {
+                    self.current_page = FrontendPage::NotificationsPage;
+                }
 
                 if sidebar_button("", &mut sidebar) { self.current_page = FrontendPage::SettingsPage; } // settings
 

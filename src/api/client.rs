@@ -13,7 +13,7 @@ use crate::{CONTACTS_LIST, MESSAGE_CACHE};
 pub struct Client {
     req: Option<reqwest::Client>,
     uuid: Uuid,
-    hwid: String,
+    pub hwid: String,
     pub logged_in: bool,
     pub user_id: Option<String>,
     token: Option<String>
@@ -274,6 +274,7 @@ impl Client {
             let response = if let Ok(r) = request.send().await { r } else { return Err(LoginError::RequestFailed) };
             let response = &response.bytes().await;
             let jason_bytes = if let Ok(r) = response { r } else { return Err(LoginError::RequestFailed) };
+            
             let jason: &str = if let Ok(string) = std::str::from_utf8(&jason_bytes) { string } else { return Err(LoginError::JsonParseFailed) };
             if jason.eq("Login.InvalidCredentials") { return Err(LoginError::InvalidCredentials) }
             let resp: LoginResponse = if let Ok(resp) = serde_json::from_str(jason) { resp } else { println!("{:?}", jason); return Err(LoginError::JsonParseFailed) };
@@ -290,35 +291,15 @@ impl Client {
     }
 
     pub async fn get_users(&mut self, id: &str) -> Result<Vec<UserInfo>, UserInfoError>{
-        let client = if let Some(client) = &self.req { client } else { return Err(UserInfoError::NoClient); };
-
-        
-
-        let mut headers = header::HeaderMap::new();
-        headers.insert("UID", header::HeaderValue::from_str(&self.hwid).expect("man"));
-        headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
-        /*headers.insert("Authorization", if let Ok(res) = header::HeaderValue::from_str(&format!("res {}:{}", 
-            if let Some(res) = &self.user_id.clone() { res } else {return None;},
-            if let Some(res) = &self.token.clone() { res } else {return None;})) { res } else { return None; }
-        );*/
-
         let is_by_username = !id.to_lowercase().get(..2).eq(&Some("u-"));
 
-        let request = client
-        .get(format!("https://api.resonite.com/users{}", if is_by_username { format!("?name={}", id) } else { format!("/{}", id) }))
-        .headers(headers);
-
-        let response = if let Ok(res) = request.send().await { res } else { return Err(UserInfoError::RequestFailed); };
-
-        if response.status().is_client_error() { return Err(UserInfoError::NoResults); }
-        
-        
-        let jason_bytes = if let Ok(res) = response.bytes().await { res } else { return Err(UserInfoError::JsonParseFailed); };
-        let jason: &str = if let Ok(res) = std::str::from_utf8(&jason_bytes) { res } else { return Err(UserInfoError::JsonParseFailed); };
+        let jason = if let Some(guh) = self.get_json(&format!("users{}", if is_by_username { format!("?name={}", id) } else { format!("/{}", id) })).await {
+            guh
+        } else { return Err(UserInfoError::RequestFailed); };
 
         if jason.eq("Invalid User ID") { return Err(UserInfoError::NoResults); }
 
-        let user: Result<Vec<UserInfo>, serde_json::Error> = serde_json::from_str(jason);
+        let user: Result<Vec<UserInfo>, serde_json::Error> = serde_json::from_str(&jason);
         if let Ok(user) = user {
             return Ok(user);
         } else {
@@ -329,33 +310,13 @@ impl Client {
     }
 
     pub async fn get_user(&mut self, id: &str) -> Result<UserInfo, UserInfoError>{
-        let client = if let Some(client) = &self.req { client } else { return Err(UserInfoError::NoClient); };
-
-        
-
-        let mut headers = header::HeaderMap::new();
-        headers.insert("UID", header::HeaderValue::from_str(&self.hwid).expect("man"));
-        headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
-        /*headers.insert("Authorization", if let Ok(res) = header::HeaderValue::from_str(&format!("res {}:{}", 
-            if let Some(res) = &self.user_id.clone() { res } else {return None;},
-            if let Some(res) = &self.token.clone() { res } else {return None;})) { res } else { return None; }
-        );*/
-
-        let request = client
-        .get(format!("https://api.resonite.com/users/{}", id))
-        .headers(headers);
-
-        let response = if let Ok(res) = request.send().await { res } else { return Err(UserInfoError::RequestFailed); };
-
-        if response.status().is_client_error() { return Err(UserInfoError::NoResults); }
-        
-        
-        let jason_bytes = if let Ok(res) = response.bytes().await { res } else { return Err(UserInfoError::JsonParseFailed); };
-        let jason: &str = if let Ok(res) = std::str::from_utf8(&jason_bytes) { res } else { return Err(UserInfoError::JsonParseFailed); };
+        let jason = if let Some(guh) = self.get_json(&format!("users/{}", id)).await {
+            guh
+        } else { return Err(UserInfoError::RequestFailed); };
 
         if jason.eq("Invalid User ID") { return Err(UserInfoError::NoResults); }
 
-        let user: Result<UserInfo, serde_json::Error> = serde_json::from_str(jason);
+        let user: Result<UserInfo, serde_json::Error> = serde_json::from_str(&jason);
         if let Ok(user) = user {
             return Ok(user);
         } else {
@@ -366,29 +327,11 @@ impl Client {
     }
 
     pub async fn get_contacts(&mut self, id: &str) {
-        let client = if let Some(client) = &self.req { client } else { return; };
+        let jason = if let Some(guh) = self.get_json(&format!("users/{}/contacts", id)).await {
+            guh
+        } else { return; };
 
-        let mut headers = header::HeaderMap::new();
-        headers.insert("UID", header::HeaderValue::from_str(&self.hwid).expect("man"));
-        headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
-        headers.insert("Authorization", if let Ok(res) = header::HeaderValue::from_str(&format!("res {}:{}", 
-            if let Some(res) = &self.user_id.clone() { res } else {return; },
-            if let Some(res) = &self.token.clone() { res } else {return; })) { res } else { return; }
-        );
-
-        let request = client
-        .get(format!("https://api.resonite.com/users/{}/contacts", id))
-        .headers(headers);
-
-        let response = if let Ok(res) = request.send().await { res } else { println!("boowomp"); return; };
-
-        if response.status().is_client_error() { println!("{:?}", response.error_for_status()); return; }
-        
-        
-        let jason_bytes = if let Ok(res) = response.bytes().await { res } else { return; };
-        let jason: &str = if let Ok(res) = std::str::from_utf8(&jason_bytes) { res } else { return; };
-
-        let user_parse_res = serde_json::from_str(jason);
+        let user_parse_res = serde_json::from_str(&jason);
 
         let users: Vec<Contact> = if let Ok(res) = user_parse_res { res } else { println!("{}", user_parse_res.err().unwrap()); println!("{}", jason); return; };
 
@@ -401,29 +344,11 @@ impl Client {
     }
 
     pub async fn get_messages(&mut self, id: &str) {
-        let client = if let Some(client) = &self.req { client } else { return; };
+        let jason = if let Some(guh) = self.get_json(&format!("users/{}/messages", id)).await {
+            guh
+        } else { return; };
 
-        let mut headers = header::HeaderMap::new();
-        headers.insert("UID", header::HeaderValue::from_str(&self.hwid).expect("man"));
-        headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
-        headers.insert("Authorization", if let Ok(res) = header::HeaderValue::from_str(&format!("res {}:{}", 
-            if let Some(res) = &self.user_id.clone() { res } else {return; },
-            if let Some(res) = &self.token.clone() { res } else {return; })) { res } else { return; }
-        );
-
-        let request = client
-        .get(format!("https://api.resonite.com/users/{}/messages", id))
-        .headers(headers);
-
-        let response = if let Ok(res) = request.send().await { res } else { println!("boowomp"); return; };
-
-        if response.status().is_client_error() { println!("{:?}", response.error_for_status()); return; }
-        
-        
-        let jason_bytes = if let Ok(res) = response.bytes().await { res } else { return; };
-        let jason: &str = if let Ok(res) = std::str::from_utf8(&jason_bytes) { res } else { return; };
-
-        let messages_parse_res = serde_json::from_str(jason);
+        let messages_parse_res = serde_json::from_str(&jason);
         let messages: Vec<Message> = if let Ok(res) = messages_parse_res { res } else { println!("{}", messages_parse_res.err().unwrap()); println!("{}", jason); return; };
 
         {
@@ -443,5 +368,35 @@ impl Client {
                 msg.sort_by(|a, b| a.last_update_time.0.cmp(&b.last_update_time.0));
             }
         }
+    }
+
+    pub async fn get_status(&mut self, id: &str) {
+        if let Some(guh) = self.get_json(&format!("users/{}/status", id)).await {
+            println!("user: {}", guh);
+        }
+    }
+
+    async fn get_json(&mut self, endpoint: &str) -> Option<String> {
+        let client = if let Some(client) = &self.req { client } else { return None };
+
+        let mut headers = header::HeaderMap::new();
+        headers.insert("UID", header::HeaderValue::from_str(&self.hwid).expect("man"));
+        headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
+        headers.insert("Authorization", if let Ok(res) = header::HeaderValue::from_str(&format!("res {}:{}", 
+            if let Some(res) = &self.user_id.clone() { res } else {return None },
+            if let Some(res) = &self.token.clone() { res } else {return None })) { res } else { return None }
+        );
+
+        let request = client
+        .get(format!("https://api.resonite.com/{}", endpoint))
+        .headers(headers);
+
+        let response = if let Ok(res) = request.send().await { res } else { println!("boowomp"); return None };
+        if response.status().is_client_error() { println!("/{} errored! {:?}", endpoint, response.error_for_status()); return None }
+        
+        
+        let jason_bytes = if let Ok(res) = response.bytes().await { res } else { return None };
+        let jason: &str = if let Ok(res) = std::str::from_utf8(&jason_bytes) { res } else { return None };
+        Some(jason.to_owned())
     }
 }

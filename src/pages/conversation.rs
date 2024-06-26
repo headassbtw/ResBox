@@ -83,7 +83,9 @@ impl TemplateApp {
                                 if should_draw_date {
                                     ui.with_layout(Layout::top_down(egui::Align::Center), |new_date| {
                                         let date = &date.unwrap();
-                                        
+                                        // europeans seething and malding
+                                        // on a serious note i should probably check if this is affected by regional format info,
+                                        // but that would require setting my xbox to the wrong version of english and i would rather die
                                         new_date.label(format!("{}/{}/{}", date.0.month(), date.0.day(), date.0.year()));
                                     });
                                 }
@@ -116,7 +118,6 @@ impl TemplateApp {
                                     mesh.add_triangle(0, 1, 2);
                                     ui.painter().add(Shape::mesh(mesh));
                                 } else {
-                                    //ui.painter().rect(paint_rect, Rounding::same(0.0), Color32::TRANSPARENT, Stroke::new(2.0, Color32::RED));
                                     ui.painter().line_segment([paint_rect.min, paint_rect.min + vec2(paint_rect.width(), 0.0)], Stroke::new(2.0, Color32::GRAY)); // top
                                     ui.painter().line_segment([paint_rect.max, paint_rect.min + vec2(paint_rect.width(), 0.0)], Stroke::new(2.0, Color32::GRAY)); // right
                                     ui.painter().line_segment([paint_rect.min, paint_rect.min + vec2(0.0, paint_rect.height() + 14.0)], Stroke::new(2.0, Color32::GRAY)); // left

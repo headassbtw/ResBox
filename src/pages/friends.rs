@@ -1,4 +1,3 @@
-
 use std::{collections::{BTreeMap, HashMap}, future::IntoFuture, sync::Arc};
 
 use keyring::{Entry, Result};

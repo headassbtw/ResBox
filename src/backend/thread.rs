@@ -115,8 +115,9 @@ pub enum UiToReso {
     TokenRequestCredentials(String, String, bool),
 
     UserInfoRequest(String),
+    UserStatusRequest(String),
 
-    SignalConnectRequest(String),
+    SignalConnectRequest(String, String),
     SignalInitializeStatus,
     SignalListenOnKey(String),
     SignalRequestStatus(String, bool),
@@ -321,19 +322,21 @@ impl BackendThread {
                     ctx.request_repaint();
                 },
 
-                UiToReso::SignalConnectRequest(token) => {
+                UiToReso::SignalConnectRequest(id, token) => {
                     let hub = Hub::default()
                     .method("ReceiveStatusUpdate", status_update)
                     .method("ReceiveMessage", message_receive)
                     .method("MessageSent", message_sent)
-                    .method("Debug", server_log)
+                    .method("Debug", server_log)    
                     //.method("ReceiveSessionUpdate", session_update)
                     ;
 
                     let result = SignalRClient::builder("api.resonite.com")
                     .use_hub("hub")
                     .with_client_hub(hub)
-                    .use_authentication(signalrs_client::builder::Auth::Bearer { token }).build().await;
+                    .use_authentication(signalrs_client::builder::Auth::Resonite { uid: api_client.hwid.clone(), id, token })
+                    //.use_unencrypted_connection()
+                    .build().await;
                     if let core::result::Result::Ok(r_client) = result {
                         client = Some(r_client);
                         tx1.send(ResoToUi::SignalConnectedResponse).unwrap();
@@ -347,7 +350,7 @@ impl BackendThread {
                     if let Some(client) = &client {
                         let func_res = client
                         .method("InitializeStatus")
-                        .invoke_unit();
+                        .invoke::<usize>();
                         let fut = func_res.await;
                         if let Err(res) = fut {
                             println!("signal request failed: {:?}", res);
@@ -437,6 +440,9 @@ impl BackendThread {
                             tx1.send(ResoToUi::SignalRequestFailedResponse(msg)).unwrap();
                         }
                     } else { tx1.send(ResoToUi::SignalUninitialized).unwrap(); }
+                },
+                UiToReso::UserStatusRequest(id) => {
+                    api_client.get_status(&id).await;
                 },
                 UiToReso::ShutdownRequest => break 'outer Ok(()),
             }
