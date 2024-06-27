@@ -87,6 +87,10 @@ impl TemplateApp {
         ui.style_mut().spacing.interact_size.y = 60.0;
         ui.style_mut().spacing.item_spacing.y = 0.0;
 
+        if metro_button(ui, "Request Status", None).clicked() {
+            self.backend.tx.send(crate::backend::thread::UiToReso::SignalRequestStatus(Some(id.clone()), false)).unwrap();
+        }
+
         if self.is_you(&id) { return ; }
         
         if metro_button(ui, "Send message", None).clicked() {

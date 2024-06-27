@@ -1,15 +1,16 @@
 use std::{collections::HashSet, future::{Future, IntoFuture}, str::FromStr, sync::mpsc::{Receiver, Sender}, time::SystemTime};
 use chrono::{DateTime, Utc};
+use egui::ahash::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-use serde_json::json;
+use serde_json::{json, Map};
 use signalrs_client::{error::ClientError, hub::{arguments::HubArgument, Hub}, SignalRClient};
 use signalrs_derive::HubArgument;
 use log::info;
 use anyhow::Error;
 use uuid::Uuid;
 
-use crate::api::{self, client::{LoginError, Message, ResDateTime}};
+use crate::api::{self, client::{Contact, LoginError, Message, ResDateTime}};
 
 #[derive(Debug, Serialize_repr, Deserialize_repr, Clone, PartialEq)]
 #[repr(u8)]
@@ -120,7 +121,7 @@ pub enum UiToReso {
     SignalConnectRequest(String, String),
     SignalInitializeStatus,
     SignalListenOnKey(String),
-    SignalRequestStatus(String, bool),
+    SignalRequestStatus(Option<String>, bool),
     SignalBroadcastStatus(UserStatus, BroadcastTarget),
     SignalSendMessage(String, String),
 
@@ -328,7 +329,7 @@ impl BackendThread {
                     .method("ReceiveMessage", message_receive)
                     .method("MessageSent", message_sent)
                     .method("Debug", server_log)    
-                    //.method("ReceiveSessionUpdate", session_update)
+                    .method("ReceiveSessionUpdate", session_update)
                     ;
 
                     let result = SignalRClient::builder("api.resonite.com")
@@ -346,18 +347,16 @@ impl BackendThread {
                     ctx.request_repaint();
                 },
                 UiToReso::SignalInitializeStatus => {
-                    println!("trying to init signal or sumn");
                     if let Some(client) = &client {
                         let func_res = client
                         .method("InitializeStatus")
-                        .invoke::<usize>();
+                        .invoke::<HashMap<String, Vec<Contact>>>();
                         let fut = func_res.await;
                         if let Err(res) = fut {
                             println!("signal request failed: {:?}", res);
                             tx1.send(ResoToUi::SignalRequestFailedResponse(res)).unwrap();
                         }
                     } else { tx1.send(ResoToUi::SignalUninitialized).unwrap(); }
-                    println!("done init-ing signal (or failing trying)");
                 },
                 UiToReso::SignalRequestStatus(id, invis) => {
                     if let Some(client) = &client {

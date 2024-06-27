@@ -407,7 +407,7 @@ impl eframe::App for TemplateApp {
                     self.logged_in = true;
                     self.backend.tx.send(backend::thread::UiToReso::SignalConnectRequest(uid.clone(), self.token.clone())).unwrap();
                     //self.notifications.push(icon_notification("", "SignalR Status Disabled", "SignalInitializeStatus not sent"));
-                    //self.backend.tx.send(backend::thread::UiToReso::SignalRequestStatus(String::new(), false)).unwrap();
+                    self.backend.tx.send(backend::thread::UiToReso::SignalRequestStatus(None, false)).unwrap(); // might be polling? idk?
                     self.backend.tx.send(backend::thread::UiToReso::SignalInitializeStatus).unwrap();
                     //self.backend.tx.send(backend::thread::UiToReso::SignalListenOnKey(String::new())).unwrap();
                     self.backend.tx.send(backend::thread::UiToReso::SignalBroadcastStatus(UserStatus::new().id(uid.clone()), BroadcastTarget::new())).unwrap();
