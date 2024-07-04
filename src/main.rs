@@ -8,7 +8,7 @@ use keyring::{Entry, Result};
 
 use backend::thread::{BackendThread, BroadcastTarget, InitialLoginType, UiToReso, UserStatus};
 use eframe::{glow, Frame};
-use egui::{epaint::{text::cursor::PCursor, Shadow}, load::SizedTexture, mutex::Mutex, output::OutputEvent, pos2, vec2, Align2, Color32, FontData, FontDefinitions, FontId, ImageSource, Layout, Margin, Pos2, Rect, RichText, Rounding, Stroke, TextEdit, TextureId, Vec2, Widget};
+use egui::{epaint::{text::cursor::PCursor, Shadow}, load::SizedTexture, mutex::Mutex, output::OutputEvent, pos2, vec2, Align2, Color32, FontData, FontDefinitions, FontId, ImageSource, Layout, Margin, Pos2, Rect, RichText, Rounding, Stroke, TextEdit, TextureId, UiStackInfo, Vec2, Widget};
 use humansize::{SizeFormatter, DECIMAL};
 use image::{LoadableImage, ResDbImageCache};
 use log::{debug, error};
@@ -26,6 +26,9 @@ pub mod image;
 use api::{client::{Contact, Message, UserInfo}, login};
 use widgets::{button::metro_button, loadable_image::loadable_image, page_header::page_header, segoe_boot_spinner::{self, SegoeBootSpinner}, toggle_switch::{self, toggle_ui}, user_info::{uid_to_color, user_info_widget, UserInfoVariant}};
 
+const KEYRING_SERVICE: &str = "com.headassbtw";
+const KEYRING_USER: &str = "resbox";
+
 #[tokio::main]
 async fn main() -> eframe::Result<()> {
 
@@ -38,6 +41,8 @@ async fn main() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([600.0, 1080.0])
+            .with_app_id(format!("{}.{}", KEYRING_SERVICE, KEYRING_USER))
+            
             .with_min_inner_size([600.0, 1080.0]),
             
         ..Default::default()
@@ -45,7 +50,7 @@ async fn main() -> eframe::Result<()> {
     eframe::run_native(
         "this will be resonite graphics in 2015",
         native_options,
-        Box::new(|cc| Box::new(TemplateApp::new(cc))),
+        Box::new(|cc| Ok(Box::new(TemplateApp::new(cc)))),
     )
 }
 
@@ -113,8 +118,6 @@ pub const SIDEBAR_ITEM_SIZE: f32 = 104.0;
 pub const CONTENT_LEFT_PAD: f32 = 70.0;
 pub const CONTENT_RIGHT_PAD: f32 = 24.0;
 
-const BUTTON_HEIGHT: f32 = 60.0;
-
 pub const SUBHEADER_COL: Color32 = Color32::from_gray(170);
 
 /// Used in place of white on disabled elements
@@ -123,9 +126,6 @@ pub const TEXT_COL: Color32 = Color32::from_gray(250);
 
 pub const ACCENT: Color32 = Color32::from_rgb(220, 53, 60);
 pub const HOVER_COL: Color32 = Color32::from_gray(51);
-
-const KEYRING_SERVICE: &str = "com.headassbtw";
-const KEYRING_USER: &str = "resbox";
 
 lazy_static! {
     pub static ref CONTACTS_LIST: Mutex<HashMap<String, Contact>> = Mutex::new(HashMap::new());
@@ -154,7 +154,6 @@ impl TemplateApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-        egui_extras::install_image_loaders(&cc.egui_ctx);
         cc.egui_ctx.style_mut(|style| {
             if cfg!(debug_assertions) {
                 style.debug.show_resize = true;
@@ -573,7 +572,7 @@ impl eframe::App for TemplateApp {
         egui::CentralPanel::default().frame(panel_frame).show(ctx, |ui| {
             let mut avail_rect = ui.available_rect_before_wrap();
             avail_rect.min.x = avail_rect.max.x - 104.0;
-            let mut sidebar = ui.child_ui(avail_rect, Layout::top_down(egui::Align::Center)); {
+            let mut sidebar = ui.child_ui(avail_rect, Layout::top_down(egui::Align::Center), None); {
 
                 sidebar.style_mut().spacing.item_spacing.y = 20.0;
 

@@ -7,7 +7,8 @@ pub fn toggle_ui(ui: &mut egui::Ui, label: &str, on: &mut bool) -> egui::Respons
     
     if !ui.is_rect_visible(response.rect) { return response; }
     
-    response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, *on, label));
+    //TODO: selected (idk it's a new egui thing)
+    response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, *on, false, label));
 
     if response.is_pointer_button_down_on() {
         painter.rect_filled(response.rect, Rounding::same(0.0), ui.style().visuals.widgets.active.bg_fill);

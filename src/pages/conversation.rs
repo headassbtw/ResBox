@@ -169,7 +169,7 @@ impl TemplateApp {
                         .text_color(Color32::WHITE)
                         .hint_text("Reply")
                         .margin(marge)
-                        .font(egui::FontId::new(24.0, eframe::epaint::FontFamily::Proportional))
+                        .font(egui::FontId::new(24.0, egui::FontFamily::Proportional))
                         .frame(false)
                     );
 
