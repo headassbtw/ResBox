@@ -1,5 +1,5 @@
-use std::{collections::HashSet, future::{Future, IntoFuture}, str::FromStr, sync::mpsc::{Receiver, Sender}, time::SystemTime};
-use chrono::{DateTime, Utc};
+use std::{collections::HashSet, future::{Future, IntoFuture}, ops::{Add, DerefMut}, str::FromStr, sync::mpsc::{Receiver, Sender}, time::{Duration, SystemTime}};
+use chrono::{Date, DateTime, Timelike, Utc};
 use egui::ahash::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -9,8 +9,9 @@ use signalrs_derive::HubArgument;
 use log::info;
 use anyhow::Error;
 use uuid::Uuid;
+use lazy_static::lazy_static;
 
-use crate::{api::{self, client::{Contact, LoginError, Message, ResDateTime}}, CONTACTS_LIST, USER_STATUSES};
+use crate::{api::{self, client::{Contact, LoginError, Message, ResDateTime}}, CONTACTS_LIST, MESSAGE_CACHE, REFRESH_UI, SESSION_CACHE, USER_STATUSES};
 
 #[derive(Debug, Serialize_repr, Deserialize_repr, Clone, PartialEq)]
 #[repr(u8)]
@@ -94,7 +95,7 @@ pub struct UserSessionMetadata {
     pub access_level: SessionAccessLevel, // probably an enum
     pub session_hidden: bool,
     pub is_host: bool,
-    pub broadcast_key: Option<serde_json::Value>,
+    pub broadcast_key: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, HubArgument)]
@@ -196,47 +197,47 @@ struct RecordId {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, HubArgument)]
 #[serde(rename_all = "camelCase")]
-struct SessionUpdate {
-    name: String,
+pub struct SessionUpdate {
+    pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
+    pub description: Option<String>,
     //#[serde(skip_serializing_if = "Option::is_none")]
     //corresponding_world_id: Option<RecordId>,
-    tags: HashSet<String>,
-    session_id: String,
-    normalized_session_id: String,
+    pub tags: HashSet<String>,
+    pub session_id: String,
+    pub normalized_session_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    host_user_id: Option<String>,
+    pub host_user_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    host_user_session_id: Option<String>,
-    host_machine_id: String,
-    host_username: String,
-    compatibility_hash: String,
+    pub host_user_session_id: Option<String>,
+    pub host_machine_id: String,
+    pub host_username: String,
+    pub compatibility_hash: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    universe_id: Option<String>,
-    app_version: String,
-    headless_host: bool, // todo: rename is_headless_host?
+    pub universe_id: Option<String>,
+    pub app_version: String,
+    pub headless_host: bool, // todo: rename is_headless_host?
     #[serde(rename = "sessionURLs")]
-    session_urls: Vec<String>,
-    parent_session_ids: Vec<String>,
-    nested_session_ids: Vec<String>,
+    pub session_urls: Vec<String>,
+    pub parent_session_ids: Vec<String>,
+    pub nested_session_ids: Vec<String>,
     //session_users: Vec<SessionUser>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    thumbnail_url: Option<String>,
-    joined_users: u32,
-    active_users: u32,
-    total_joined_users: u32,
-    total_active_users: u32,
-    max_users: u32,
-    mobile_friendly: bool,
-    session_begin_time: String, // todo: Date
-    last_update: String,
+    pub thumbnail_url: Option<String>,
+    pub joined_users: u32,
+    pub active_users: u32,
+    pub total_joined_users: u32,
+    pub total_active_users: u32,
+    pub max_users: u32,
+    pub mobile_friendly: bool,
+    pub session_begin_time: ResDateTime,
+    pub last_update: String,
     //access_level: SessionAccessLevel,
-    hide_from_listing: bool,
+    pub hide_from_listing: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    broadcast_key: Option<String>,
-    has_ended: bool,
-    is_valid: bool,
+    pub broadcast_key: Option<String>,
+    pub has_ended: bool,
+    pub is_valid: bool,
 }
 
 
@@ -253,8 +254,9 @@ struct HubArgumentValue(serde_json::Value);
 
 async fn status_update(message: UserStatus) {
     let mut statuses = USER_STATUSES.lock();
+    //if message.user_id
     statuses.insert(message.user_id.clone(), message);
-    //TODO: refresh the ui (egui context can't be static, i think)
+    *REFRESH_UI.lock().deref_mut() = true;
 }
 
 async fn server_log(message: String) {
@@ -262,15 +264,20 @@ async fn server_log(message: String) {
 }
 
 async fn session_update(message: SessionUpdate) {
-    //println!("session update: {:?}", message);
+    let mut list = SESSION_CACHE.lock();
+    let key = message.session_id.clone();
+    list.insert(key, message);
+    *REFRESH_UI.lock().deref_mut() = true;
 }
 
 async fn message_receive(message: String) {
     println!("message received: {}", message);
+    *REFRESH_UI.lock().deref_mut() = true;
 }
 
 async fn message_sent(message: String) {
     println!("message sent: {}", message);
+    *REFRESH_UI.lock().deref_mut() = true;
 }
 
 
@@ -280,9 +287,10 @@ impl BackendThread {
         let (tx0, rx1) = std::sync::mpsc::channel();
         let (tx1, rx0) = std::sync::mpsc::channel();
         let context = ctx.clone();
+        let tx00 = tx0.clone();
         tokio::task::spawn(async move {
             let tx11 = tx1.clone();
-            let result = BackendThread::run(rx1, tx1, &context, creds).await;
+            let result = BackendThread::run(rx1, tx00, tx1, &context, creds).await;
             if let Err(res) = result {
                 tx11.send(ResoToUi::ThreadCrashedResponse(res)).unwrap();
             }
@@ -293,6 +301,7 @@ impl BackendThread {
 
     async fn run(
         rx1: Receiver<UiToReso>,
+        tx0: Sender<UiToReso>,
         tx1: Sender<ResoToUi>,
         ctx: &egui::Context,
         creds: InitialLoginType
@@ -326,10 +335,22 @@ impl BackendThread {
         }
         ctx.request_repaint();
        
-
-        
+        let mut future  = SystemTime::now();
+        future = future.checked_add(Duration::from_secs(10)).unwrap();
 
         'outer: loop {
+            let now = SystemTime::now();
+            if now >= future {
+                future = now.checked_add(Duration::from_secs(10)).unwrap();
+                tx0.send(UiToReso::SignalRequestStatus(None, false)).unwrap(); // this sucks!
+            }
+            {
+                let mut boolin = REFRESH_UI.lock();
+                if *boolin {
+                    ctx.request_repaint();
+                    *boolin = false;
+                }
+            }
             let request = rx1.try_recv();
             if request.is_err() {
                 continue;
@@ -404,7 +425,7 @@ impl BackendThread {
                             println!("SignalR invocation failed: {:?}", msg);
                             tx1.send(ResoToUi::SignalRequestFailedResponse(msg)).unwrap();
                         } else {
-                            println!("guh");
+                            //println!("guh");
                         }
                     } else { tx1.send(ResoToUi::SignalUninitialized).unwrap(); }
                 },

@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use egui::{epaint::{emath::lerp, Rect, Shape}, pos2, vec2, Align2, Color32, FontId, Pos2, Rounding, Stroke, FontFamily, Response, Sense, Ui, Widget, WidgetInfo, WidgetType};
 
-use crate::{api::client::{Contact, UserInfo}, backend::thread::OnlineStatus, image::ResDbImageCache, main, TemplateApp, SUBHEADER_COL, USER_STATUSES};
+use crate::{api::client::{Contact, UserInfo}, backend::thread::OnlineStatus, image::ResDbImageCache, main, TemplateApp, SESSION_CACHE, SUBHEADER_COL, USER_STATUSES};
 use super::loadable_image::loadable_image;
 
 pub enum UserInfoVariant<'a> {
@@ -61,6 +61,7 @@ pub fn draw_user_pic_at(ui: &mut egui::Ui, rect: egui::Rect, cache: &mut ResDbIm
 
 pub fn user_color_and_subtext(id: &str) -> (Option<Color32>, String) {
     let stats = USER_STATUSES.lock();
+    let s_cache = SESSION_CACHE.lock();
     let stat = stats.get(id);
 
     let (status, subtext) = {
@@ -74,7 +75,17 @@ pub fn user_color_and_subtext(id: &str) -> (Option<Color32>, String) {
                         OnlineStatus::Away => "Away",
                         OnlineStatus::Busy => "Busy",
                         OnlineStatus::Online => {
-                            let session_count = line.sessions.len();
+                            
+                            let session_name_plsfix = if let Some(session) = &line.sessions.get(line.current_session_index as usize) {
+                                if let Some(cached) = s_cache.get(&session.session_hash) {
+                                    Some(&cached.name)
+                                } else {
+                                    None
+                                }
+                            } else { None };
+                            if let Some(name) = session_name_plsfix {
+                                name
+                            } else {let session_count = line.sessions.len();
                             match &line.sessions.len() {
                                 0 => "Online",
                                 _ => {
@@ -93,7 +104,7 @@ pub fn user_color_and_subtext(id: &str) -> (Option<Color32>, String) {
                                 
                                     )
                                 }
-                            }
+                            }}
                         },
                         OnlineStatus::Sociable => "Sociable",
                     },

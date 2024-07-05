@@ -6,7 +6,7 @@ use std::{collections::{BTreeMap, HashMap}, future::IntoFuture, sync::Arc};
 
 use keyring::{Entry, Result};
 
-use backend::thread::{BackendThread, BroadcastTarget, InitialLoginType, UiToReso, UserStatus};
+use backend::thread::{BackendThread, BroadcastTarget, InitialLoginType, UiToReso, UserStatus, SessionUpdate};
 use eframe::{glow, Frame};
 use egui::{epaint::{text::cursor::PCursor, Shadow}, load::SizedTexture, mutex::Mutex, output::OutputEvent, pos2, vec2, Align2, Color32, FontData, FontDefinitions, FontId, ImageSource, Layout, Margin, Pos2, Rect, RichText, Rounding, Stroke, TextEdit, TextureId, UiStackInfo, Vec2, Widget};
 use humansize::{SizeFormatter, DECIMAL};
@@ -131,6 +131,9 @@ lazy_static! { // sue me.
     pub static ref CONTACTS_LIST: Mutex<HashMap<String, Contact>> = Mutex::new(HashMap::new());
     pub static ref USER_STATUSES: Mutex<HashMap<String, UserStatus>> = Mutex::new(HashMap::new());
     pub static ref MESSAGE_CACHE: Mutex<HashMap<String, Vec<Message>>> = Mutex::new(HashMap::new());
+    pub static ref SESSION_CACHE: Mutex<HashMap<String, SessionUpdate>> = Mutex::new(HashMap::new());
+    /// THIS FUCKING SUCKS!
+    pub static ref REFRESH_UI: Mutex<bool> = Mutex::new(false);
 }
 
 fn icon_notification(icon: &str, header: &str, details: &str) -> FrontendNotification {
@@ -374,6 +377,9 @@ impl TemplateApp {
                     self.notifications.push(icon_notification("", "Keyring deletion failed", format!("{}", err).as_str()));
                 }
             }
+        }
+        if metro_button(ui, "Request Status", None).clicked() {
+            self.backend.tx.send(UiToReso::SignalRequestStatus(None, false)).unwrap();
         }
     }
 
@@ -684,6 +690,7 @@ impl eframe::App for TemplateApp {
                     FrontendPage::SignInPage => self.signin_page(page),
                     FrontendPage::ProfilePage(id) => self.profile_page(page, id.to_string()),
                     FrontendPage::FriendsPage => self.friends_page(page),
+                    FrontendPage::SessionsPage => self.sessions_page(page),
                     FrontendPage::NotificationsPage => self.notifications_page(page),
                     FrontendPage::LoadingPage => self.loading_page(page),
                     FrontendPage::UserSearchPage => self.user_search_page(page),
