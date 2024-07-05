@@ -43,7 +43,7 @@ async fn main() -> eframe::Result<()> {
             .with_inner_size([600.0, 1080.0])
             .with_app_id(format!("{}.{}", KEYRING_SERVICE, KEYRING_USER))
             
-            .with_min_inner_size([600.0, 1080.0]),
+            .with_min_inner_size([600.0, 900.0]),
             
         ..Default::default()
     };
