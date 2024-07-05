@@ -127,8 +127,9 @@ pub const TEXT_COL: Color32 = Color32::from_gray(250);
 pub const ACCENT: Color32 = Color32::from_rgb(220, 53, 60);
 pub const HOVER_COL: Color32 = Color32::from_gray(51);
 
-lazy_static! {
+lazy_static! { // sue me.
     pub static ref CONTACTS_LIST: Mutex<HashMap<String, Contact>> = Mutex::new(HashMap::new());
+    pub static ref USER_STATUSES: Mutex<HashMap<String, UserStatus>> = Mutex::new(HashMap::new());
     pub static ref MESSAGE_CACHE: Mutex<HashMap<String, Vec<Message>>> = Mutex::new(HashMap::new());
 }
 

@@ -10,7 +10,7 @@ use log::info;
 use anyhow::Error;
 use uuid::Uuid;
 
-use crate::api::{self, client::{Contact, LoginError, Message, ResDateTime}};
+use crate::{api::{self, client::{Contact, LoginError, Message, ResDateTime}}, CONTACTS_LIST, USER_STATUSES};
 
 #[derive(Debug, Serialize_repr, Deserialize_repr, Clone, PartialEq)]
 #[repr(u8)]
@@ -39,7 +39,7 @@ pub enum OutputDevice {
     Camera,
 }
 
-#[derive(Debug, Serialize, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Clone, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OnlineStatus {
     Offline,
     Invisible,
@@ -62,6 +62,41 @@ impl BroadcastTarget {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "PascalCase")]
+pub struct RSAParametersData {
+    exponent: String,
+    modulus: String,
+    p: Option<serde_json::Value>,
+    q: Option<serde_json::Value>,
+    #[serde(rename = "DP")]
+    dp: Option<serde_json::Value>,
+    #[serde(rename = "DQ")]
+    dq: Option<serde_json::Value>,
+    inverse_q: Option<serde_json::Value>,
+    d: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, HubArgument)]
+pub enum SessionAccessLevel {
+    Private,
+    LAN,
+    Contacts,
+    ContactsPlus,
+    RegisteredUsers,
+    Anyone,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct UserSessionMetadata {
+    pub session_hash: String,
+    pub access_level: SessionAccessLevel, // probably an enum
+    pub session_hidden: bool,
+    pub is_host: bool,
+    pub broadcast_key: Option<serde_json::Value>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, HubArgument)]
 #[serde(rename_all = "camelCase")]
 pub struct UserStatus {
@@ -75,19 +110,22 @@ pub struct UserStatus {
     pub online_status: Option<OnlineStatus>,
     pub is_present: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_presence_timestamp: Option<String>, // DateTime
-    pub last_status_change: String, // DateTime
+    pub last_presence_timestamp: Option<ResDateTime>, // DateTime
+    pub last_status_change: ResDateTime, // DateTime
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hash_salt: Option<String>,
     pub app_version: String,
-    pub compatibility_hash: String,
-    pub sessions: Vec<String>, // List<UserSessionMetadata>
+    pub compatibility_hash: String, 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub public_r_s_a_key: Option<RSAParametersData>,
+    pub sessions: Vec<UserSessionMetadata>,
     pub current_session_index: i64,
 }
 
 impl UserStatus {
     pub fn new() -> Self {
         let now = SystemTime::now();
-        let now: DateTime<Utc> = now.into();
-        let now = now.to_rfc3339();
+        let now: ResDateTime = ResDateTime(now.into());
 
 
         Self {
@@ -100,8 +138,10 @@ impl UserStatus {
             is_present: true,
             last_presence_timestamp: Some(now.clone()),
             last_status_change: now.clone(),
+            hash_salt: None,
             app_version: "0.0.0 of null".into(),
             compatibility_hash: "YPDxN4N9fu7ZgV+Nr/AHQw==".into(),
+            public_r_s_a_key: None,
             sessions: Vec::new(),
             current_session_index: -1,
         }
@@ -152,18 +192,6 @@ pub struct BackendThread {
 struct RecordId {
     record_id: String,
     owner_id: String,
-}
-
-#[derive(
-    Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, HubArgument,
-)]
-enum SessionAccessLevel {
-    Private,
-    LAN,
-    Contacts,
-    ContactsPlus,
-    RegisteredUsers,
-    Anyone,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, HubArgument)]
@@ -220,10 +248,17 @@ pub enum InitialLoginType {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, HubArgument)]
+struct HubArgumentValue(serde_json::Value);
+
 async fn status_update(message: UserStatus) {
-    println!("!!!");
-    println!("status update: {:?}", message);
-    println!("!!!");
+    let mut statuses = USER_STATUSES.lock();
+    statuses.insert(message.user_id.clone(), message);
+    //TODO: refresh the ui (egui context can't be static, i think)
+}
+
+async fn server_log(message: String) {
+    println!("Reso server: {}", message);
 }
 
 async fn session_update(message: SessionUpdate) {
@@ -238,9 +273,7 @@ async fn message_sent(message: String) {
     println!("message sent: {}", message);
 }
 
-async fn server_log(message: String) {
-    println!("Reso server: {}", message);
-}
+
 
 impl BackendThread {
     pub fn new(ctx: &egui::Context, creds: InitialLoginType) -> Self {
@@ -326,9 +359,9 @@ impl BackendThread {
                 UiToReso::SignalConnectRequest(id, token) => {
                     let hub = Hub::default()
                     .method("ReceiveStatusUpdate", status_update)
+                    .method("Debug", server_log)    
                     .method("ReceiveMessage", message_receive)
                     .method("MessageSent", message_sent)
-                    .method("Debug", server_log)    
                     .method("ReceiveSessionUpdate", session_update)
                     ;
 
@@ -376,6 +409,8 @@ impl BackendThread {
                     } else { tx1.send(ResoToUi::SignalUninitialized).unwrap(); }
                 },
                 UiToReso::SignalBroadcastStatus(a, b) => {
+                    // cache it for ourselfs first
+                    USER_STATUSES.lock().insert(a.user_id.clone(), a.clone());
                     if let Some(client) = &client {
                         let res = client.method("BroadcastStatus").arg(a)
                         .and_then(|build| build.arg(b));

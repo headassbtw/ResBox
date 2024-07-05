@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use egui::{epaint::{emath::lerp, Rect, Shape}, pos2, vec2, Align2, Color32, FontId, Pos2, Rounding, Stroke, FontFamily, Response, Sense, Ui, Widget, WidgetInfo, WidgetType};
 
-use crate::{api::client::{Contact, UserInfo}, image::ResDbImageCache, main, TemplateApp, SUBHEADER_COL};
+use crate::{api::client::{Contact, UserInfo}, backend::thread::OnlineStatus, image::ResDbImageCache, main, TemplateApp, SUBHEADER_COL, USER_STATUSES};
 use super::loadable_image::loadable_image;
 
 pub enum UserInfoVariant<'a> {
@@ -59,6 +59,70 @@ pub fn draw_user_pic_at(ui: &mut egui::Ui, rect: egui::Rect, cache: &mut ResDbIm
     }
 }
 
+pub fn user_color_and_subtext(id: &str) -> (Option<Color32>, String) {
+    let stats = USER_STATUSES.lock();
+    let stat = stats.get(id);
+
+    let (status, subtext) = {
+        if let Some(line) = stat {
+            (
+                &line.online_status,
+                match &line.online_status {
+                    Some(s) => match s {
+                        OnlineStatus::Offline => "Offline",
+                        OnlineStatus::Invisible => "Offline (wink wink)",
+                        OnlineStatus::Away => "Away",
+                        OnlineStatus::Busy => "Busy",
+                        OnlineStatus::Online => {
+                            let session_count = line.sessions.len();
+                            match &line.sessions.len() {
+                                0 => "Online",
+                                _ => {
+                                    &format!("In a {} Session ({} total)", 
+                                        match &line.sessions.get(line.current_session_index as usize){
+                                            Some(session) => match session.access_level {
+                                                crate::backend::thread::SessionAccessLevel::Private => "Private",
+                                                crate::backend::thread::SessionAccessLevel::LAN => "LAN",
+                                                crate::backend::thread::SessionAccessLevel::Contacts => "Contacts",
+                                                crate::backend::thread::SessionAccessLevel::ContactsPlus => "Contacts+",
+                                                crate::backend::thread::SessionAccessLevel::RegisteredUsers => "Registered Users",
+                                                crate::backend::thread::SessionAccessLevel::Anyone => "Public",
+                                            },
+                                            None => "Null",
+                                        }, session_count
+                                
+                                    )
+                                }
+                            }
+                        },
+                        OnlineStatus::Sociable => "Sociable",
+                    },
+                    None => "Unknown",
+                }
+            )
+        } else {
+            (
+                &None,
+                "Offline (No Status)"
+            )
+        }
+    };
+
+    let col = match status {
+        Some(s) => match s {
+            OnlineStatus::Offline => None,
+            OnlineStatus::Invisible => Some(Color32::GRAY),
+            OnlineStatus::Away => Some(Color32::GOLD),
+            OnlineStatus::Busy => Some(Color32::RED),
+            OnlineStatus::Online => Some(Color32::GREEN),
+            OnlineStatus::Sociable => Some(Color32::BLUE),
+        },
+        None => None,
+    };
+
+    (col, subtext.to_owned())
+}
+
 pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: UserInfoVariant) -> egui::Response {
     let height = ui.style().spacing.interact_size.y;
     let mut rect = ui.cursor().clone();
@@ -91,12 +155,11 @@ pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: Us
 
     let blank_ref = &"".to_owned();
 
-    let (main, sub, stat, needs_draw) = {
+    let (main, sub, needs_draw) = {
         match info {
             UserInfoVariant::Uncached(uid) => {
                 (
                     uid,
-                    blank_ref,
                     blank_ref,
                     true
                 )
@@ -105,7 +168,6 @@ pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: Us
                 (
                     &contact.contact_username,
                     &contact.id,
-                    &contact.contact_status,
                     if let Some(prof) = &contact.profile {
                         let loadable = cache.get_image(&prof.icon_url);
                         loadable_image(ui, &loadable, cirlcle_rect, "", uid_to_color(&contact.id), 32.0, false);
@@ -117,7 +179,6 @@ pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: Us
                 (
                     &user.username,
                     &user.id,
-                    blank_ref,
                     if let Some(prof) = &user.profile {
                         let loadable = cache.get_image(&prof.icon_url);
                         loadable_image(ui, &loadable, cirlcle_rect, "", uid_to_color(&user.id), 32.0, false);
@@ -141,7 +202,18 @@ pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: Us
 
     ui.painter().text(pos2(fullname_rect.min.x, fullname_rect.max.y), Align2::LEFT_BOTTOM, sub, FontId::proportional(18.0), Color32::GRAY);
 
-    ui.painter().text(bound_rect.min + vec2(0.0, 34.0), Align2::LEFT_TOP, stat, FontId::proportional(24.0), Color32::GRAY);
+    {
+        
+        let (col, subtext) = user_color_and_subtext(sub);
+
+        if let Some(col) = col {
+            let center = Pos2 { x: (circle_pos.x - pfp_radius) + 4.0, y: (circle_pos.y - pfp_radius) + 4.0 };
+            ui.painter().circle(center, 4.0, col, Stroke::NONE);
+        }
+        
+        ui.painter().text(bound_rect.min + vec2(0.0, 34.0), Align2::LEFT_TOP, subtext, FontId::proportional(24.0), Color32::GRAY);
+    }
+
 
     response
 }

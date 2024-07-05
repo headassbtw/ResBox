@@ -1,7 +1,7 @@
 use chrono::{DateTime, Datelike, Utc};
-use egui::{text::{LayoutJob, TextWrapping}, vec2, Align, Align2, Color32, FontId, Layout, Margin, Mesh, RichText, Rounding, Shape, Stroke, TextEdit};
+use egui::{text::{LayoutJob, TextWrapping}, vec2, Align, Align2, Color32, FontId, Layout, Margin, Mesh, Pos2, RichText, Rounding, Shape, Stroke, TextEdit};
 
-use crate::{api::client::{Contact, MessageType, ResDateTime}, backend::thread::UiToReso, disgusting_bullshit, widgets::{button::metro_button, page_header::page_header, user_info::{draw_user_pic_at, user_info_widget, UserInfoVariant}}, TemplateApp, CONTACTS_LIST, MESSAGE_CACHE};
+use crate::{api::client::{Contact, MessageType, ResDateTime}, backend::thread::UiToReso, disgusting_bullshit, widgets::{button::metro_button, page_header::page_header, user_info::{draw_user_pic_at, user_color_and_subtext, user_info_widget, UserInfoVariant}}, TemplateApp, CONTACTS_LIST, MESSAGE_CACHE};
 
 impl TemplateApp {
     pub fn conversation_page(&mut self, ui: &mut egui::Ui, id: String) {
@@ -42,10 +42,14 @@ impl TemplateApp {
 
                 let text_anchor = img_rect.center() + vec2(36.0 + 18.0, 0.0);
 
+                let (col, subtext) = user_color_and_subtext(&id);
+                if let Some(col) = col {
+                    let center = Pos2 { x: img_rect.min.x + 4.0, y: img_rect.min.y + 4.0 };
+                    ui.painter().circle(center, 4.0, col, Stroke::NONE);
+                }
                 
-
                 painter.text(text_anchor - vec2(0.0, 4.0), Align2::LEFT_BOTTOM, name, FontId::proportional(24.0), Color32::WHITE);
-                painter.text(text_anchor + vec2(0.0, 4.0), Align2::LEFT_TOP, "Offline", FontId::proportional(20.0), Color32::from_gray(140));
+                painter.text(text_anchor + vec2(0.0, 4.0), Align2::LEFT_TOP, subtext, FontId::proportional(20.0), Color32::from_gray(140));
             } else {
                 page_header(ui, "Message Page", "Oh fuck (user is not in contacts)");
             }

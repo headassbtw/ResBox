@@ -2,7 +2,7 @@ use egui::{vec2, Align2, Color32, FontId};
 
 use crate::{
     widgets::{
-        button::metro_button, loadable_image::loadable_image, user_info::uid_to_color
+        button::metro_button, loadable_image::loadable_image, user_info::{uid_to_color, user_color_and_subtext}
     }, FrontendPage, TemplateApp, CONTACTS_LIST, HOVER_COL
 };
 
@@ -75,11 +75,16 @@ impl TemplateApp {
             }
         };
 
+        let (col, subtext) = user_color_and_subtext(&id);
+        //TODO: add subtext
+
         let sub_basis = ui.painter().text(name_pos, Align2::CENTER_TOP, name, FontId::proportional(24.0), Color32::WHITE);
         let id_pos = sub_basis.min + vec2(sub_basis.width() / 2.0, 38.0);
         ui.painter().text(id_pos, Align2::CENTER_TOP, &id, FontId::proportional(24.0), Color32::GRAY);
         let stat_pos = sub_basis.min + vec2(-18.0, 16.0);
-        ui.painter().circle_filled(stat_pos, 6.0, Color32::GREEN);
+        if let Some(col) = col {
+            ui.painter().circle_filled(stat_pos, 6.0, col);
+        }
 
         avail_rect.min.y += 80.0;
         ui.allocate_space(vec2(0.0, avail_rect.min.y - ui.cursor().min.y));

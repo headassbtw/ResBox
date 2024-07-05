@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
 
 use chrono::{DateTime, Datelike};
-use egui::{pos2, text::{LayoutJob, LayoutSection, TextWrapping}, vec2, Align2, Color32, FontId, RichText, Rounding, TextFormat};
+use egui::{pos2, text::{LayoutJob, LayoutSection, TextWrapping}, vec2, Align2, Color32, FontId, Pos2, RichText, Rounding, Stroke, TextFormat};
 
-use crate::{api::client::{Message, MessageType, ResDateTime}, widgets::{button::metro_button, page_header::page_header, user_info::{draw_user_pic_at, UserInfoVariant}}, FrontendPage, TemplateApp, CONTACTS_LIST, HOVER_COL, MESSAGE_CACHE};
+use crate::{api::client::{Message, MessageType, ResDateTime}, widgets::{button::metro_button, page_header::page_header, user_info::{draw_user_pic_at, user_color_and_subtext, UserInfoVariant}}, FrontendPage, TemplateApp, CONTACTS_LIST, HOVER_COL, MESSAGE_CACHE};
 
 impl TemplateApp {
     pub fn messages_page(&mut self, ui: &mut egui::Ui) {
@@ -84,7 +84,12 @@ impl TemplateApp {
                     let left_center = img_rect.center() + vec2(52.0, 0.0);
 
                     
-                    
+                    //TODO: maybe make one that only returns color?
+                    let (col, stat) = user_color_and_subtext(&id);
+
+                    if let Some(col) = col {
+                        ui.painter().circle(Pos2 {x: img_rect.min.x + 4.0, y: img_rect.min.y + 4.0}, 4.0, col, Stroke::NONE);
+                    }
 
                     let u_galley = ui.painter().layout(if let Some(name) = contacts.get(id) { name.contact_username.clone() } else { id.to_string() }, FontId::proportional(24.0), Color32::WHITE, bound_rect.width());
                     let u_rect = Align2::LEFT_BOTTOM.anchor_size(left_center, u_galley.size());
