@@ -103,7 +103,7 @@ pub fn user_color_and_subtext(id: &str) -> (Option<Color32>, String) {
         } else {
             (
                 &None,
-                "Offline (No Status)"
+                "Offline"
             )
         }
     };
