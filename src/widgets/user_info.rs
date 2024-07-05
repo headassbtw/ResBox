@@ -170,7 +170,7 @@ pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: Us
                     &contact.id,
                     if let Some(prof) = &contact.profile {
                         let loadable = cache.get_image(&prof.icon_url);
-                        loadable_image(ui, &loadable, cirlcle_rect, "", uid_to_color(&contact.id), 32.0, false);
+                        loadable_image(ui, &loadable, cirlcle_rect, "", uid_to_color(&contact.id), pfp_radius, false);
                         false
                     } else { true }
             )
