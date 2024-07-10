@@ -51,7 +51,7 @@ impl TemplateApp {
                     }
 
                     if resp.clicked() {
-                        self.current_page = FrontendPage::ConversationPage(id.clone());
+                        self.set_page(FrontendPage::ConversationPage(id.clone()));
                     }
 
                     let mut img_rect = rect.clone();

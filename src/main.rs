@@ -8,7 +8,7 @@ use keyring::{Entry, Result};
 
 use backend::thread::{BackendThread, BroadcastTarget, InitialLoginType, UiToReso, UserStatus, SessionUpdate};
 use eframe::{glow, Frame};
-use egui::{epaint::{text::cursor::PCursor, Shadow}, load::SizedTexture, mutex::Mutex, output::OutputEvent, pos2, vec2, Align2, Color32, FontData, FontDefinitions, FontId, ImageSource, Layout, Margin, Pos2, Rect, RichText, Rounding, Stroke, TextEdit, TextureId, UiStackInfo, Vec2, Widget};
+use egui::{epaint::{text::cursor::PCursor, Shadow}, load::SizedTexture, mutex::Mutex, output::OutputEvent, pos2, vec2, Align2, Color32, FontData, FontDefinitions, FontId, ImageSource, Key, Layout, Margin, PointerButton, Pos2, Rect, RichText, Rounding, Stroke, TextEdit, TextureId, UiStackInfo, Vec2, Widget};
 use humansize::{SizeFormatter, DECIMAL};
 use image::{LoadableImage, ResDbImageCache};
 use log::{debug, error};
@@ -20,6 +20,8 @@ mod api;
 mod widgets;
 mod backend;
 mod pages;
+mod self_helpers;
+mod bridge;
 
 pub mod image;
 
@@ -81,7 +83,10 @@ pub struct TemplateApp {
     user_id: Option<String>,
     token: String,
     notifications: Vec<FrontendNotification>,
-    current_page: FrontendPage,
+    /// past pages viewed
+    page_stack: Vec<FrontendPage>,
+    /// used to index page_stack, to support both going back and forward
+    current_page: usize,
     entry_fields: TemporaryEntryFields,
     cached_user_infos: HashMap<String, UserInfo>,
     image_cache: ResDbImageCache,
@@ -145,15 +150,6 @@ fn icon_notification(icon: &str, header: &str, details: &str) -> FrontendNotific
 }
 
 impl TemplateApp {
-
-    fn username(&mut self) -> String {
-        if let Some(you) = &self.you {
-            you.username.clone()
-        } else {
-            String::from("you")
-        }
-    }
-
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customize the look and feel of egui using
@@ -225,7 +221,12 @@ impl TemplateApp {
             user_id: None,
             token: String::new(),
             you: None,
-            current_page: FrontendPage::LoadingPage,
+            page_stack: {
+                let mut vec = Vec::new();
+                vec.push(FrontendPage::LoadingPage);
+                vec
+            },
+            current_page: 0,
             notifications: r,
             cached_user_infos: HashMap::new(),
             backend: BackendThread::new(&cc.egui_ctx, creds),
@@ -263,131 +264,6 @@ fn disgusting_bullshit(ui: &mut egui::Ui, click_test: bool) {
     }
 }
 
-impl TemplateApp {    
-
-    pub fn /*baba_*/is_you(&self, id: &String) -> bool {
-        if let Some(you_id) = &self.user_id {
-            you_id.eq(id)
-        } else {
-            false
-        }
-    }
-
-    pub fn signin_page(&mut self, ui: &mut egui::Ui) {
-        ui.style_mut().spacing.interact_size.y = 60.0;
-        
-        page_header(ui, "Sign In", "0 Signed in");
-
-        ui.style_mut().spacing.item_spacing.y = 0.0;
-        let mut test_rect = ui.available_rect_before_wrap();
-        test_rect.max.y = test_rect.min.y + 60.0;
-        let marge = Margin { left: CONTENT_LEFT_PAD, right: CONTENT_RIGHT_PAD, top: 12.0, bottom: 12.0 };
-
-        if !self.logged_in && self.can_attempt_login{
-            disgusting_bullshit(ui, false);
-            ui.add_sized(test_rect.size(), TextEdit::singleline(&mut self.entry_fields.login_details.username)
-                .desired_width(test_rect.width())
-                .vertical_align(egui::Align::Center)
-                .text_color(TEXT_COL)
-                .hint_text("Username")
-                .margin(marge)
-                .font(egui::FontId::new(24.0, eframe::epaint::FontFamily::Proportional))
-                .frame(false)
-            );
-            
-            disgusting_bullshit(ui, false);
-            ui.add_sized(test_rect.size(), TextEdit::singleline(&mut self.entry_fields.login_details.password)
-                .desired_width(test_rect.width())
-                .vertical_align(egui::Align::Center)
-                .text_color(TEXT_COL)
-                .hint_text("Password")
-                .margin(marge)
-                .font(egui::FontId::new(24.0, eframe::epaint::FontFamily::Proportional))
-                .password(true)
-                .frame(false)
-            );
-
-            
-            toggle_ui(ui, "Remember Me", &mut self.entry_fields.login_details.remember_me);
-            
-            if metro_button(ui, "Log in", Some(("", 24.0))).clicked() {
-                self.backend.tx.send(backend::thread::UiToReso::TokenRequestCredentials(self.entry_fields.login_details.username.clone(), self.entry_fields.login_details.password.clone(), self.entry_fields.login_details.remember_me)).unwrap();
-                self.can_attempt_login = false;      
-                self.current_page = FrontendPage::LoadingPage;          
-            }
-        }
-    }
-    
-    pub fn user_search_page(&mut self, ui: &mut egui::Ui) {
-        page_header(ui, "Query Users", &self.username());
-        let marge = Margin { left: CONTENT_LEFT_PAD, right: CONTENT_RIGHT_PAD, top: 12.0, bottom: 12.0 };
-        let i_size = vec2(ui.available_width(), 60.0);
-        ui.style_mut().spacing.interact_size.y = 60.0;
-
-        disgusting_bullshit(ui, false);
-        let text_re = ui.add_sized(i_size, TextEdit::singleline(&mut self.entry_fields.user_info_query)
-            .desired_width(i_size.x)
-            .vertical_align(egui::Align::Center)
-            .text_color(TEXT_COL)
-            .hint_text("User ID")
-            .margin(marge)
-            .font(egui::FontId::new(24.0, eframe::epaint::FontFamily::Proportional))
-            .frame(false)
-        );
-
-        
-
-        if (text_re.lost_focus()  && text_re.ctx.input(|i| i.key_pressed(egui::Key::Enter))) || metro_button(ui, "Search", Some(("", 24.0))).clicked() {
-            self.entry_fields.user_info_query_results.clear();
-            self.backend.tx.send(UiToReso::UserInfoRequest(self.entry_fields.user_info_query.clone())).unwrap();
-        }
-
-        ui.style_mut().spacing.interact_size.y = 80.0;
-
-        egui::containers::ScrollArea::vertical().scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden).show(ui, |ui| {
-            ui.style_mut().spacing.interact_size.y = 104.0;
-            ui.style_mut().spacing.item_spacing.y = 4.0;
-            for user in &self.entry_fields.user_info_query_results {
-                if let Some(userinfo) = self.cached_user_infos.get(user) {
-                    let id = userinfo.id.clone();
-                    if user_info_widget(ui, &mut self.image_cache, UserInfoVariant::Cached(&userinfo)).clicked() {
-                        self.current_page = FrontendPage::ProfilePage(id);
-                    }
-                } else {
-                    user_info_widget(ui, &mut self.image_cache, UserInfoVariant::Uncached(user));
-                }
-            }
-        });
-    }
-
-    pub fn unknown_page(&mut self, ui: &mut egui::Ui) {
-        page_header(ui, "Unknown Page", "Not Implemented");
-    }
-
-    pub fn settings_page(&mut self, ui: &mut egui::Ui) {
-        page_header(ui, "Settings", "[UNFINISHED/DEBUG]");
-        ui.style_mut().spacing.interact_size.y = 60.0;
-
-        if metro_button(ui, "Clear persistent credentials", Some(("", 24.0))).clicked() {
-            self.entry_fields.login_details.remember_me = false;
-            self.entry_fields.login_details.username = "".to_owned();
-            self.entry_fields.login_details.password = "".to_owned();
-            if let Ok(entry) = Entry::new(KEYRING_SERVICE, KEYRING_USER) {
-                if let Err(err) = entry.delete_password() {
-                    self.notifications.push(icon_notification("", "Keyring deletion failed", format!("{}", err).as_str()));
-                }
-            }
-        }
-        if metro_button(ui, "Request Status", None).clicked() {
-            self.backend.tx.send(UiToReso::SignalRequestStatus(None, false)).unwrap();
-        }
-    }
-
-    pub fn loading_page(&mut self, ui: &mut egui::Ui) {
-        ui.put(ui.available_rect_before_wrap(), SegoeBootSpinner::new().size(150.0));
-    }
-}
-
 fn sidebar_button(text: &str, ui: &mut egui::Ui) -> bool {
     ui.add_sized(vec2(SIDEBAR_ITEM_SIZE,SIDEBAR_ITEM_SIZE), egui::Button::new(egui::RichText::new(text).size(32.0).color(Color32::WHITE)).frame(false)).clicked()
 }
@@ -406,168 +282,9 @@ impl eframe::App for TemplateApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         while let Ok(result) = self.backend.rx.try_recv() {
-            match result {
-                backend::thread::ResoToUi::LoggedInResponse(token, uid) => {
-                    self.token = token.clone();
-                    self.user_id = Some(uid.clone());
-                    self.logged_in = true;
-                    self.backend.tx.send(backend::thread::UiToReso::SignalConnectRequest(uid.clone(), self.token.clone())).unwrap();
-                    //self.notifications.push(icon_notification("", "SignalR Status Disabled", "SignalInitializeStatus not sent"));
-                    self.backend.tx.send(backend::thread::UiToReso::SignalRequestStatus(None, false)).unwrap(); // might be polling? idk?
-                    self.backend.tx.send(backend::thread::UiToReso::SignalInitializeStatus).unwrap();
-                    //self.backend.tx.send(backend::thread::UiToReso::SignalListenOnKey(String::new())).unwrap();
-                    self.backend.tx.send(backend::thread::UiToReso::SignalBroadcastStatus(UserStatus::new().id(uid.clone()), BroadcastTarget::new())).unwrap();
-                    if self.current_page == FrontendPage::LoadingPage {
-                        self.current_page = FrontendPage::ProfilePage(uid.clone());
-                    }
-                    if !self.entry_fields.login_details.remember_me {
-                        self.entry_fields.login_details.username = "".to_owned();
-                        self.entry_fields.login_details.password = "".to_owned();
-                        if let Ok(entry) = Entry::new(KEYRING_SERVICE, KEYRING_USER) {
-                            if let Err(err) = entry.delete_password() {
-                                match err {
-                                    keyring::Error::NoEntry => {
-                                        //ignore it.
-                                    },
-                                    _ => {
-                                        self.notifications.push(icon_notification("", "Keyring deletion failed", format!("{}", err).as_str()
-                                        ));
-                                    },
-                                }
-                            }
-                            
-                        }
-                    }
-
-                    if let Ok(entry) = Entry::new(KEYRING_SERVICE, KEYRING_USER) {
-                        if self.entry_fields.login_details.remember_me {
-                            if let Err(err) = entry.set_password(&token) {
-                                let err_str = 
-                                match err {
-                                    keyring::Error::PlatformFailure(err) => format!("Platform failure"),
-                                    keyring::Error::NoStorageAccess(err) => format!("No storage access"),
-                                    keyring::Error::NoEntry => todo!(),
-                                    keyring::Error::BadEncoding(_) => "Bad encoding".to_string(),
-                                    keyring::Error::TooLong(attr, max_len) => format!("attribute \"{}\" too long (max {})", attr, max_len),
-                                    keyring::Error::Invalid(attr, reason) => format!("attribute \"{}\": {}", attr, reason),
-                                    keyring::Error::Ambiguous(amb) => {
-                                        "Ambiguous"
-                                    }.to_string(),
-                                    _ => "Unknown Error".to_string(),
-                                };
-                                println!("Keyring error: {}", err_str);
-                                self.notifications.push(FrontendNotification {
-                                    icon: FrontendNotificationIcon::SegoeIcon("".to_owned()),
-                                    text: "Keyring Failed".to_owned(),
-                                    sub: err_str});
-                            }
-                        } else {
-                            let _ = entry.delete_password();
-                        }
-                    }
-                },
-                backend::thread::ResoToUi::LoginFailedResponse(reason) => {
-                    self.notifications.push(FrontendNotification {
-                        icon: FrontendNotificationIcon::SegoeIcon("".to_owned()),
-                        text: "Login failed".to_owned(),
-                        sub: format!("{}", match reason {
-                            api::client::LoginError::InvalidCredentials => {
-                                "Invalid Credentials"
-                            },
-                            api::client::LoginError::JsonParseFailed => {
-                                "JSON Parse Failed"
-                            },
-                            api::client::LoginError::RequestFailed => {
-                                "HTTP Request Failed"
-                            },
-                            api::client::LoginError::ReachedTheEnd => {
-                                "Reached the end without returning"
-                            },
-                        })
-                    });
-                    self.can_attempt_login = true;
-                    
-                },
-                backend::thread::ResoToUi::UserInfoResponse(id, user) => {
-                    if let Some(you_id) = &self.user_id.clone() {
-                        if you_id.eq(&id) {
-                            self.you = Some(user.clone());
-                            if let Some(profile) = &user.profile {
-                                self.notifications.push(FrontendNotification { icon: FrontendNotificationIcon::LoadableImage(self.image_cache.get_image(&profile.icon_url)), text: format!("Hi {}!", &user.username), sub: "You're signed in".to_owned() });
-                            } else {
-                                self.notifications.push(FrontendNotification { icon: FrontendNotificationIcon::SegoeIcon("".to_owned()), text: format!("Hi {}!", &user.username), sub: "You're signed in".to_owned() });
-                            }
-                        }
-                    }
-
-                    self.cached_user_infos.insert(id.clone(), user);
-
-                    if self.current_page == FrontendPage::UserSearchPage {
-                        self.entry_fields.user_info_query_results.push(id);
-                    }
-                },
-                backend::thread::ResoToUi::SignalConnectFailedResponse(err) => {
-                    self.notifications.push(FrontendNotification {
-                        icon: FrontendNotificationIcon::SegoeIcon("".to_owned()),
-                        text: "SignalR Connect failed".to_owned(),
-                        sub: format!("{}", match err {
-                            signalrs_client::builder::BuilderError::Negotiate { source } => {
-                                match source {
-                                    signalrs_client::builder::NegotiateError::Request { source } => {
-                                        println!("Negotiation error: {}", source);
-                                        format!("Negotiation Request error")
-                                    },
-                                    signalrs_client::builder::NegotiateError::Deserialization { source } => format!("Negotiation Deserialization error"),
-                                    signalrs_client::builder::NegotiateError::Unsupported => format!("Negotiation Unsupported"),
-                                }
-                            },
-                            signalrs_client::builder::BuilderError::Url(_) => format!("Url"),
-                            signalrs_client::builder::BuilderError::Transport { source } => {
-                                format!("Transport error: {}", source)
-                            },
-                        })
-                    });
-                },
-                backend::thread::ResoToUi::SignalRequestFailedResponse(stat) => {
-                    self.notifications.push(FrontendNotification {
-                        icon: FrontendNotificationIcon::SegoeIcon("".to_owned()),
-                        text: "SignalR Request failed".to_owned(),
-                        sub: format!("{}", match stat {
-                                signalrs_client::error::ClientError::Malformed { direction, source } => { "Malformed request" },
-                                signalrs_client::error::ClientError::Hub { source } => { match source {
-                                    signalrs_client::hub::error::HubError::Generic { message } => "Generic hub error",
-                                    signalrs_client::hub::error::HubError::Extraction { source } => "Message extraction failed",
-                                    signalrs_client::hub::error::HubError::Unsupported { message } =>{"Hub feature unsupported"},
-                                    signalrs_client::hub::error::HubError::Unprocessable { message } => {"Message could not be processed"},
-                                    signalrs_client::hub::error::HubError::Incomprehensible { source } => {"Message could not be understood"},
-                                } },
-                                signalrs_client::error::ClientError::ProtocolError { message } => { "Protocol violated" },
-                                signalrs_client::error::ClientError::NoResponse { message } => { "No response" },
-                                signalrs_client::error::ClientError::Result { message } => { println!("server error: {}", message); "Server error" },
-                                signalrs_client::error::ClientError::TransportInavailable { message } => { "Cannot reach transport" },
-                                signalrs_client::error::ClientError::Handshake { message } => { println!("{}", message); "Handshake" },
-                            })
-                        });
-                },
-                backend::thread::ResoToUi::SignalConnectedResponse => {
-                    self.notifications.push(FrontendNotification { icon: FrontendNotificationIcon::SegoeIcon("".to_owned()), text: "SignalR Connected!".to_owned(), sub: format!("") });
-                }
-                backend::thread::ResoToUi::SignalUninitialized => {
-                    self.notifications.push(FrontendNotification { icon: FrontendNotificationIcon::SegoeIcon("".to_owned()), text: "SignalR not initialized".to_owned(), sub: format!("yet tried to make a call") });
-                }
-                backend::thread::ResoToUi::ThreadCrashedResponse(err) => {
-                    //  exclamation mark
-                    self.notifications.push(FrontendNotification { icon: FrontendNotificationIcon::SegoeIcon("".to_owned()), text: "Backend Crashed".to_owned(), sub: format!("{}", err) });
-                },
-                backend::thread::ResoToUi::PreviousTokenInvalidResponse => {
-                    if self.current_page == FrontendPage::LoadingPage {
-                        self.current_page = FrontendPage::SignInPage;
-                    }
-                    self.can_attempt_login = true;
-                },
-            }
+            bridge::to_ui::process_to_ui(self, result);
         }
-        
+
         let panel_frame = egui::Frame {
             inner_margin: Margin::same(0.0),
             outer_margin: Margin::same(0.0),
@@ -577,6 +294,25 @@ impl eframe::App for TemplateApp {
             stroke: Stroke::NONE,
         };
         egui::CentralPanel::default().frame(panel_frame).show(ctx, |ui| {
+            ui.input_mut(|state| {
+                for ev in &state.events { // this shit sucks
+                    match ev {
+                        egui::Event::Key { key, physical_key, pressed, repeat, modifiers } => {
+                            if key == &Key::Escape && *pressed && !*repeat{
+                                self.page_back();
+                            }
+                        },
+                        egui::Event::PointerButton { pos, button, pressed, modifiers } => {
+                            if button == &PointerButton::Extra1 && *pressed{
+                                self.page_back();
+                            } else if button == &PointerButton::Extra2 && *pressed{
+                                self.page_forward();
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+            });
             let mut avail_rect = ui.available_rect_before_wrap();
             avail_rect.min.x = avail_rect.max.x - 104.0;
             let mut sidebar = ui.child_ui(avail_rect, Layout::top_down(egui::Align::Center), None); {
@@ -586,7 +322,7 @@ impl eframe::App for TemplateApp {
                 sidebar.painter().rect_filled(avail_rect, Rounding::same(0.0), Color32::from_gray(6));
                 sidebar.allocate_space(vec2(0.0, 0.0));
                 
-                let tab = match &self.current_page {
+                let tab = match self.current_page() {
                     FrontendPage::SignInPage => 0,
                     FrontendPage::ProfilePage(id) => {if let Some(you) = &self.user_id { if you.eq(id) { 0 } else { 255 }} else { 255 }},
                     FrontendPage::ConversationPage(_) => 255,
@@ -607,7 +343,7 @@ impl eframe::App for TemplateApp {
 
                 if self.logged_in {
                     let (rect, response) = sidebar.allocate_exact_size(vec2(SIDEBAR_ITEM_SIZE,SIDEBAR_ITEM_SIZE), egui::Sense::click());
-                    if response.clicked() { self.current_page = FrontendPage::ProfilePage(self.user_id.clone().unwrap()); }
+                    if response.clicked() { self.set_page(FrontendPage::ProfilePage(self.user_id.clone().unwrap())); }
 
                     let needs_placeholder: bool = if let Some(profile) = &self.you {
                         if let Some(profile) = &profile.profile {
@@ -628,21 +364,21 @@ impl eframe::App for TemplateApp {
                     
                 } else if !self.can_attempt_login {
                     if sidebar.add_sized(vec2(SIDEBAR_ITEM_SIZE,SIDEBAR_ITEM_SIZE), segoe_boot_spinner::SegoeBootSpinner::new().size(32.0)).clicked() {
-                        self.current_page = FrontendPage::LoadingPage;
+                        self.set_page(FrontendPage::LoadingPage);
                     }
                 } else {
                     if sidebar.add_sized(vec2(SIDEBAR_ITEM_SIZE,SIDEBAR_ITEM_SIZE), egui::Button::new(egui::RichText::new("").size(32.0).color(Color32::WHITE)).frame(false)).clicked() {
-                        self.current_page = FrontendPage::SignInPage;
+                        self.set_page(FrontendPage::SignInPage);
                     }
                 }
                 
                 sidebar.style_mut().spacing.item_spacing.y = 4.0;
 
-                if sidebar_button("", &mut sidebar) { self.current_page = FrontendPage::FriendsPage; }  // friends
+                if sidebar_button("", &mut sidebar) { self.set_page(FrontendPage::FriendsPage); }  // friends
 
-                if sidebar_button("", &mut sidebar) { self.current_page = FrontendPage::SessionsPage; } // parties (sessions)
+                if sidebar_button("", &mut sidebar) { self.set_page(FrontendPage::SessionsPage); } // parties (sessions)
 
-                if sidebar_button("", &mut sidebar) { self.current_page = FrontendPage::MessagesPage; } // messages
+                if sidebar_button("", &mut sidebar) { self.set_page(FrontendPage::MessagesPage); } // messages
 
                 if {
                     let (rect, response) = sidebar.allocate_exact_size(vec2(SIDEBAR_ITEM_SIZE, SIDEBAR_ITEM_SIZE), egui::Sense::click());
@@ -664,10 +400,10 @@ impl eframe::App for TemplateApp {
 
                     response.clicked()
                 } {
-                    self.current_page = FrontendPage::NotificationsPage;
+                    self.set_page(FrontendPage::NotificationsPage);
                 }
 
-                if sidebar_button("", &mut sidebar) { self.current_page = FrontendPage::SettingsPage; } // settings
+                if sidebar_button("", &mut sidebar) { self.set_page(FrontendPage::SettingsPage); } // settings
 
                 sidebar.with_layout(Layout::bottom_up(egui::Align::Center), |dbg_warn| {
                     dbg_warn.allocate_space(vec2(0.0, 4.0));
@@ -686,7 +422,7 @@ impl eframe::App for TemplateApp {
                 page.style_mut().spacing.window_margin = Margin::symmetric(CONTENT_LEFT_PAD, 0.0);
                 page.style_mut().spacing.window_margin.right = CONTENT_RIGHT_PAD;
                 
-                match &self.current_page {
+                match self.current_page() {
                     FrontendPage::SignInPage => self.signin_page(page),
                     FrontendPage::ProfilePage(id) => self.profile_page(page, id.to_string()),
                     FrontendPage::FriendsPage => self.friends_page(page),

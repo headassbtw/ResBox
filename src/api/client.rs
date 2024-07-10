@@ -212,6 +212,17 @@ pub enum LoginError {
     ReachedTheEnd
 }
 
+impl fmt::Display for LoginError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match self {
+            LoginError::InvalidCredentials => "Invalid Credentials",
+            LoginError::JsonParseFailed => "JSON Parse Failed",
+            LoginError::RequestFailed => "Request Failed",
+            LoginError::ReachedTheEnd => "Pipe Bomb in Mailbox",
+        })
+    }
+}
+
 #[derive(std::fmt::Debug)]
 pub enum UserInfoError {
     /// Profile JSON parsing failed

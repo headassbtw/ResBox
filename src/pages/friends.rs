@@ -20,7 +20,7 @@ impl TemplateApp {
         
 
         if metro_button(ui, "Find someone", None).clicked() {
-            self.current_page = FrontendPage::UserSearchPage;
+            self.set_page(FrontendPage::UserSearchPage);
         }
 
         
@@ -53,7 +53,7 @@ impl TemplateApp {
             for (id, user) in ctx_list {
                 if !user.is_accepted { continue; }
                 if user_info_widget(ui, &mut self.image_cache, UserInfoVariant::Contact(&user)).clicked() {
-                    self.current_page = FrontendPage::ProfilePage(id.clone());
+                    self.set_page(FrontendPage::ProfilePage(id.clone()));
                 }
             }
         });

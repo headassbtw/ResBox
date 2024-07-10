@@ -99,7 +99,7 @@ impl TemplateApp {
         if self.is_you(&id) { return ; }
         
         if metro_button(ui, "Send message", None).clicked() {
-            self.current_page = FrontendPage::ConversationPage(id.clone());
+            self.set_page(FrontendPage::ConversationPage(id.clone()));
         }
         
         ui.set_enabled(false);
