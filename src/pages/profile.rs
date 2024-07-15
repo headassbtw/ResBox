@@ -3,7 +3,7 @@ use egui::{vec2, Align2, Color32, FontId};
 use crate::{
     widgets::{
         button::metro_button, loadable_image::loadable_image, user_info::{uid_to_color, user_color_and_subtext}
-    }, FrontendPage, TemplateApp, CONTACTS_LIST, HOVER_COL
+    }, FrontendPage, TemplateApp, CONTACTS_LIST, HOVER_COL, SESSION_CACHE, THIS_FUCKING_SUCKS, USER_STATUSES
 };
 
 
@@ -107,6 +107,29 @@ impl TemplateApp {
             metro_button(ui, "Friend Request", Some(("", 24.0)));
         }
         metro_button(ui, "Block", None);
+
+
+        // this is here for debug purposes, it's useful so i'm going to leave it here
+        // i made this commit on a laptop forgive me
+        let jank0 = USER_STATUSES.lock();
+        
+        if jank0.get(&id).is_none() { return; }
+        let status = jank0.get(&id).unwrap();
+
+        for (idx, session) in &mut status.sessions.iter().enumerate() {
+            let active = if status.current_session_index < 0 { false } else { (status.current_session_index as usize).eq(&idx) };
+            let jank1 = THIS_FUCKING_SUCKS.lock();
+            let jank2 = SESSION_CACHE.lock();
+            if let Some(session_id) = jank1.get(&session.session_hash) {
+                if let Some(session) = jank2.get(session_id) {
+                    ui.label(format!("{}{}", if active {"Active - "} else {""}, session.name));
+                } else {
+                    ui.label(format!("{}hash in table but session not", if active {"Active - "} else {""}));
+                }
+            } else {
+                ui.label(format!("{}hash not in table", if active {"Active - "} else {""}));
+            }
+        }
         
     }
 }

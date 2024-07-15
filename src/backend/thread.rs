@@ -11,7 +11,7 @@ use anyhow::Error;
 use uuid::Uuid;
 use lazy_static::lazy_static;
 
-use crate::{api::{self, client::{Contact, LoginError, Message, ResDateTime}}, CONTACTS_LIST, MESSAGE_CACHE, REFRESH_UI, SESSION_CACHE, USER_STATUSES};
+use crate::{api::{self, client::{Contact, LoginError, Message, ResDateTime}}, CONTACTS_LIST, MESSAGE_CACHE, REFRESH_UI, SESSION_CACHE, THIS_FUCKING_SUCKS, USER_STATUSES};
 
 #[derive(Debug, Serialize_repr, Deserialize_repr, Clone, PartialEq)]
 #[repr(u8)]
@@ -253,8 +253,18 @@ pub enum InitialLoginType {
 struct HubArgumentValue(serde_json::Value);
 
 async fn status_update(message: UserStatus) {
+    println!("Recieved status update for {}", message.user_id);
+    
+    if message.hash_salt.is_some() {
+        for (id, session) in SESSION_CACHE.lock().iter() {
+
+            let to_digest = format!("{}{}", id, message.hash_salt.clone().unwrap());
+            let digested = sha256::digest(to_digest).to_ascii_uppercase();
+            THIS_FUCKING_SUCKS.lock().insert(digested, session.session_id.clone());
+        }
+    }
+
     let mut statuses = USER_STATUSES.lock();
-    //if message.user_id
     statuses.insert(message.user_id.clone(), message);
     *REFRESH_UI.lock().deref_mut() = true;
 }
@@ -319,8 +329,10 @@ impl BackendThread {
                     tx1.send(ResoToUi::LoggedInResponse(token, your_id.clone())).unwrap();
                     if let Ok(you) = api_client.get_user(&your_id.clone()).await {
                         tx1.send(ResoToUi::UserInfoResponse(your_id.clone(), you)).unwrap();
+                        
                         api_client.get_contacts(&your_id.clone()).await;
                         api_client.get_messages(&your_id.clone()).await;
+                        api_client.get_sessions().await;
                     } else {
                         println!("uh? whoops?");
                     }
@@ -376,7 +388,6 @@ impl BackendThread {
                     }
                     ctx.request_repaint();
                 },
-
                 UiToReso::SignalConnectRequest(id, token) => {
                     let hub = Hub::default()
                     .method("ReceiveStatusUpdate", status_update)
@@ -431,7 +442,7 @@ impl BackendThread {
                 },
                 UiToReso::SignalBroadcastStatus(a, b) => {
                     // cache it for ourselfs first
-                    USER_STATUSES.lock().insert(a.user_id.clone(), a.clone());
+                    { USER_STATUSES.lock().insert(a.user_id.clone(), a.clone()); }
                     if let Some(client) = &client {
                         let res = client.method("BroadcastStatus").arg(a)
                         .and_then(|build| build.arg(b));

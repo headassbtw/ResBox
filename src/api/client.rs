@@ -8,7 +8,7 @@ use uuid::Uuid;
 use serde::{self, de::{MapAccess, Visitor}, ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
 use sha256::digest;
 
-use crate::{CONTACTS_LIST, MESSAGE_CACHE};
+use crate::{backend::thread::SessionUpdate, CONTACTS_LIST, MESSAGE_CACHE, SESSION_CACHE};
 
 pub struct Client {
     req: Option<reqwest::Client>,
@@ -384,6 +384,20 @@ impl Client {
     pub async fn get_status(&mut self, id: &str) {
         if let Some(guh) = self.get_json(&format!("users/{}/status", id)).await {
             println!("user: {}", guh);
+        }
+    }
+
+    pub async fn get_sessions(&mut self) {
+        let jason = if let Some(guh) = self.get_json("sessions").await { guh } else { return; };
+        
+        let sesisons_parse_res = serde_json::from_str(&jason);
+        let sessions: Vec<SessionUpdate> = if let Ok(res) = sesisons_parse_res { res } else { println!("{}", sesisons_parse_res.err().unwrap()); println!("{}", jason); return; };
+
+        {
+            let mut cache = SESSION_CACHE.lock();
+            for session in sessions {
+                cache.insert(session.session_id.clone(), session);
+            }
         }
     }
 

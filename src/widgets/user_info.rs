@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use egui::{epaint::{emath::lerp, Rect, Shape}, pos2, vec2, Align2, Color32, FontId, Pos2, Rounding, Stroke, FontFamily, Response, Sense, Ui, Widget, WidgetInfo, WidgetType};
 
-use crate::{api::client::{Contact, UserInfo}, backend::thread::OnlineStatus, image::ResDbImageCache, main, TemplateApp, SESSION_CACHE, SUBHEADER_COL, USER_STATUSES};
+use crate::{api::client::{Contact, UserInfo}, backend::thread::OnlineStatus, image::ResDbImageCache, main, TemplateApp, SESSION_CACHE, SUBHEADER_COL, THIS_FUCKING_SUCKS, USER_STATUSES};
 use super::loadable_image::loadable_image;
 
 pub enum UserInfoVariant<'a> {
@@ -89,16 +89,26 @@ pub fn user_color_and_subtext(id: &str) -> (Option<Color32>, String) {
                             match &line.sessions.len() {
                                 0 => "Online",
                                 _ => {
-                                    &format!("In a {} Session ({} total)", 
+                                    &format!("In {} ({} total)", 
                                         match &line.sessions.get(line.current_session_index as usize){
-                                            Some(session) => match session.access_level {
-                                                crate::backend::thread::SessionAccessLevel::Private => "Private",
-                                                crate::backend::thread::SessionAccessLevel::LAN => "LAN",
-                                                crate::backend::thread::SessionAccessLevel::Contacts => "Contacts",
-                                                crate::backend::thread::SessionAccessLevel::ContactsPlus => "Contacts+",
-                                                crate::backend::thread::SessionAccessLevel::RegisteredUsers => "Registered Users",
-                                                crate::backend::thread::SessionAccessLevel::Anyone => "Public",
-                                            },
+                                            Some(session) => {
+                                                if let Some(session_id) = THIS_FUCKING_SUCKS.lock().get(&session.session_hash) {
+                                                    if let Some(session_frfr) = s_cache.get(session_id) {
+                                                        &session_frfr.name
+                                                    } else {
+                                                        ""
+                                                    }
+                                                } else {
+                                                    match session.access_level {
+                                                        crate::backend::thread::SessionAccessLevel::Private => "A Private Session",
+                                                        crate::backend::thread::SessionAccessLevel::LAN => "A LAN Session",
+                                                        crate::backend::thread::SessionAccessLevel::Contacts => "A Contacts Session",
+                                                        crate::backend::thread::SessionAccessLevel::ContactsPlus => "A Contacts+ Session",
+                                                        crate::backend::thread::SessionAccessLevel::RegisteredUsers => "A Registered Users Session",
+                                                        crate::backend::thread::SessionAccessLevel::Anyone => "A Public Session",
+                                                    }
+                                                }
+                                        },
                                             None => "Null",
                                         }, session_count
                                 

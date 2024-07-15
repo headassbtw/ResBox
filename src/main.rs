@@ -143,6 +143,8 @@ lazy_static! { // sue me.
     pub static ref SESSION_CACHE: Mutex<HashMap<String, SessionUpdate>> = Mutex::new(HashMap::new());
     /// THIS FUCKING SUCKS!
     pub static ref REFRESH_UI: Mutex<bool> = Mutex::new(false);
+
+    pub static ref THIS_FUCKING_SUCKS: Mutex<HashMap<String, String>> = Mutex::new(HashMap::new());
 }
 
 fn icon_notification(icon: &str, header: &str, details: &str) -> FrontendNotification {
