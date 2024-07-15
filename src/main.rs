@@ -44,7 +44,11 @@ async fn main() -> eframe::Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([600.0, 1080.0])
             .with_app_id(format!("{}.{}", KEYRING_SERVICE, KEYRING_USER))
-            
+            // the quintessential "traffic lights in content" all osx apps have
+            .with_fullsize_content_view(true)
+            .with_title_shown(false)
+            .with_titlebar_shown(false)
+
             .with_min_inner_size([600.0, 900.0]),
             
         ..Default::default()

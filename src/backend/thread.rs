@@ -116,7 +116,7 @@ pub struct UserStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hash_salt: Option<String>,
     pub app_version: String,
-    pub compatibility_hash: String, 
+    pub compatibility_hash: Option<String>, 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub public_r_s_a_key: Option<RSAParametersData>,
     pub sessions: Vec<UserSessionMetadata>,
@@ -141,7 +141,7 @@ impl UserStatus {
             last_status_change: now.clone(),
             hash_salt: None,
             app_version: "0.0.0 of null".into(),
-            compatibility_hash: "YPDxN4N9fu7ZgV+Nr/AHQw==".into(),
+            compatibility_hash: None,
             public_r_s_a_key: None,
             sessions: Vec::new(),
             current_session_index: -1,

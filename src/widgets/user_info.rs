@@ -136,11 +136,9 @@ pub fn user_color_and_subtext(id: &str) -> (Option<Color32>, String) {
 
 pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: UserInfoVariant) -> egui::Response {
     let height = ui.style().spacing.interact_size.y;
-    let mut rect = ui.cursor().clone();
-    rect.max.y = height + rect.min.y;
-    let response = ui.allocate_rect(rect, egui::Sense::click());
-
-    if !ui.is_rect_visible(rect) { return response; }
+    let (response, painter) = ui.allocate_painter(vec2(ui.cursor().width(), height), egui::Sense::click());
+    
+    if !ui.is_rect_visible(response.rect) { return response; }
 
     let pfp_radius = (height - 32.0 ) / 2.0;
 
@@ -150,17 +148,17 @@ pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: Us
     // 16px padding
 
     let bound_rect = Rect {
-        min: Pos2 { x: rect.min.x + ui.style().spacing.window_margin.left + (pfp_radius * 2.0) + 16.0,  y: rect.min.y + 16.0 },
-        max: Pos2 { x: rect.max.x - ui.style().spacing.window_margin.right,                             y: rect.max.y - 16.0 }
+        min: Pos2 { x: response.rect.min.x + ui.style().spacing.window_margin.left + (pfp_radius * 2.0) + 16.0,  y: response.rect.min.y + 16.0 },
+        max: Pos2 { x: response.rect.max.x - ui.style().spacing.window_margin.right,                             y: response.rect.max.y - 16.0 }
     };
 
     if response.is_pointer_button_down_on() {
-        ui.painter().rect_filled(rect, Rounding::same(0.0), ui.style().visuals.widgets.active.bg_fill);
+        painter.rect_filled(response.rect, Rounding::same(0.0), ui.style().visuals.widgets.active.bg_fill);
     } else if response.hovered() {
-        ui.painter().rect_filled(rect, Rounding::same(0.0), ui.style().visuals.widgets.hovered.bg_fill);
+        painter.rect_filled(response.rect, Rounding::same(0.0), ui.style().visuals.widgets.hovered.bg_fill);
     }
 
-    let circle_pos = rect.min + vec2(ui.style().spacing.window_margin.left + pfp_radius, pfp_radius + 16.0);
+    let circle_pos = response.rect.min + vec2(ui.style().spacing.window_margin.left + pfp_radius, pfp_radius + 16.0);
 
     let cirlcle_rect = egui::Rect::from_center_size(circle_pos, vec2(pfp_radius * 2.0, pfp_radius * 2.0));
 
@@ -201,8 +199,8 @@ pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: Us
     };
     
     if needs_draw {
-        ui.painter().circle_filled(circle_pos, pfp_radius, uid_to_color(if sub.is_empty() { main } else {sub} ));
-        ui.painter().text(circle_pos, Align2::CENTER_CENTER, "", FontId::proportional(pfp_radius), Color32::WHITE);
+        painter.circle_filled(circle_pos, pfp_radius, uid_to_color(if sub.is_empty() { main } else {sub} ));
+        painter.text(circle_pos, Align2::CENTER_CENTER, "", FontId::proportional(pfp_radius), Color32::WHITE);
     }
 
     let mut fullname_rect = ui.painter().text(bound_rect.min, Align2::LEFT_TOP, main, FontId::proportional(24.0), Color32::WHITE);
@@ -211,7 +209,7 @@ pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: Us
     fullname_rect.max.x = bound_rect.max.x;
     fullname_rect.min.x += 12.0;
 
-    ui.painter().text(pos2(fullname_rect.min.x, fullname_rect.max.y), Align2::LEFT_BOTTOM, sub, FontId::proportional(18.0), Color32::GRAY);
+    painter.text(pos2(fullname_rect.min.x, fullname_rect.max.y), Align2::LEFT_BOTTOM, sub, FontId::proportional(18.0), Color32::GRAY);
 
     {
         
@@ -219,10 +217,10 @@ pub fn user_info_widget(ui: &mut egui::Ui, cache: &mut ResDbImageCache, info: Us
 
         if let Some(col) = col {
             let center = Pos2 { x: (circle_pos.x - pfp_radius) + 4.0, y: (circle_pos.y - pfp_radius) + 4.0 };
-            ui.painter().circle(center, 4.0, col, Stroke::NONE);
+            painter.circle(center, 4.0, col, Stroke::NONE);
         }
         
-        ui.painter().text(bound_rect.min + vec2(0.0, 34.0), Align2::LEFT_TOP, subtext, FontId::proportional(24.0), Color32::GRAY);
+        painter.text(bound_rect.min + vec2(0.0, 34.0), Align2::LEFT_TOP, subtext, FontId::proportional(24.0), Color32::GRAY);
     }
 
 

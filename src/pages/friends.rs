@@ -32,21 +32,26 @@ impl TemplateApp {
             let mut ctx_list: Vec<(&String, &Contact)> = list.iter().collect();
             { // we lock the user statuses in the user info widget, locking it in the scope above hardlocks the UI (ask me how i know)
                 let stat_list = USER_STATUSES.lock();
-                //TODO: this sorting doesn't work
-                ctx_list.sort_by(|a, b| {
-                    let (c,d) = *a;
-                    let (e,f) = *b;
-            
-                    if let Some(first) = stat_list.get(c) {
-                        if let Some(first_cmp) = stat_list.get(e) { 
-                            if first.online_status.is_none() && first_cmp.online_status.is_none() { return Ordering::Equal }
 
-                            if let Some(first) = &first.online_status {
-                                // we already checked both, if one is ok then the other is too
-                                return first_cmp.online_status.as_ref().unwrap().cmp(first)
-                            } return Ordering::Less
-                        } return Ordering::Less
-                    } return Ordering::Less
+                // Last online
+                ctx_list.sort_by(|a, b| {
+                    let (_,d) = *a;
+                    let (_,f) = *b;
+            
+                    return f.latest_message_time.0.cmp(&d.latest_message_time.0);
+                });
+
+                // Current online status
+                ctx_list.sort_by(|a, b| {
+                    let (c,_) = *a;
+                    let (e,_) = *b;
+            
+                    if !stat_list.contains_key(c) && !stat_list.contains_key(e) { return Ordering::Equal; }
+                    //we've ruled out both not existing, we can check individually
+                    if !stat_list.contains_key(c) { return Ordering::Greater; } // b exists, a doesn't, b > a
+                    if !stat_list.contains_key(e) { return Ordering::Less; }    // a exists, b doesn't, a > b
+                    
+                    return stat_list.get(c).unwrap().online_status.cmp(&stat_list.get(e).unwrap().online_status);
                 });
             }
         
