@@ -161,7 +161,7 @@ impl TemplateApp {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
         cc.egui_ctx.style_mut(|style| {
-            if cfg!(debug_assertions) {
+            #[cfg(debug_assertions)] {
                 style.debug.show_resize = true;
                 style.debug.debug_on_hover_with_all_modifiers = true;
                 style.debug.hover_shows_next = true;
@@ -384,7 +384,7 @@ impl eframe::App for TemplateApp {
 
                 if sidebar_button("", &mut sidebar) { self.set_page(FrontendPage::SessionsPage); } // parties (sessions)
 
-                if sidebar_button("", &mut sidebar) { self.set_page(FrontendPage::MessagesPage); } // messages
+                if sidebar_button("", &mut sidebar) { self.set_page(FrontendPage::MessagesPage); } // messages
 
                 if {
                     let (rect, response) = sidebar.allocate_exact_size(vec2(SIDEBAR_ITEM_SIZE, SIDEBAR_ITEM_SIZE), egui::Sense::click());
